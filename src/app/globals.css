@@ -1,26 +1,152 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --line: #e2e8f0;
+  --line-subtle: #f1f5f9;
+  --ink: #1e293b;
+  --navy: #163a5f;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --hover: #f1f5f9;
+  --focus: #dbeafe;
+  --control: #ffffff;
+  --brand: #2563eb;
+}
+
+html.dark {
+  color-scheme: dark;
+  --page: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #141414;
+  --line: #262626;
+  --line-subtle: #1a1a1a;
+  --ink: #f5f5f5;
+  --navy: #f5f5f5;
+  --muted: #a3a3a3;
+  --faint: #737373;
+  --hover: #1a1a1a;
+  --focus: #262626;
+  --control: #141414;
+  --brand: #3b82f6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-ink: var(--ink);
+  --color-navy: var(--navy);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-hover: var(--hover);
+  --color-focus: var(--focus);
+  --color-control: var(--control);
+  --color-brand: var(--brand);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-capsula: var(--font-ethnocentric);
+  --font-slogan: var(--font-vipna);
+  --radius-sm: 5px;
+  --radius-md: 5px;
+  --radius-lg: 5px;
+  --radius-xl: 5px;
+  --radius-2xl: 5px;
+  --radius-3xl: 5px;
+  --radius-4xl: 5px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  height: 100%;
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  min-height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
+}
+
+.scrollbar-minimal {
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb {
+  background-color: var(--faint);
+  border-radius: 999px;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
+}
+
+.scrollbar-minimal::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@keyframes alert-glow {
+  0%,
+  100% {
+    background-color: rgb(239 68 68 / 0.08);
+  }
+  50% {
+    background-color: rgb(239 68 68 / 0.18);
+  }
+}
+
+@keyframes alert-beat {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.12);
+  }
+}
+
+.row-alert {
+  box-shadow: inset 3px 0 0 0 #ef4444;
+  animation: alert-glow 1.7s ease-in-out infinite;
+}
+
+.alert-beat {
+  animation: alert-beat 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-alert,
+  .alert-beat {
+    animation: none;
+  }
 }
