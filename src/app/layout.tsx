@@ -26,6 +26,7 @@ const vipnagorgialla = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://capsulatecnologia.com.br"),
   title: "Gestão de Projetos",
   description: "CAPSULA Tecnologia",
   icons: {
