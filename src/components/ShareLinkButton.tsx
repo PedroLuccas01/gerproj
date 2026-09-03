@@ -241,6 +241,8 @@ export function ShareLinkDialog({
       setLoading(false);
     }
   }
+
+  async function revoke() {
     const ok = await confirm({
       title: "Revogar acesso",
       description: "O cliente não poderá mais abrir o cronograma com este link.",
