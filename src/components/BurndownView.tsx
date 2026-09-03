@@ -22,8 +22,8 @@ export function BurndownView() {
 
   const filteredTasks = useMemo(() => {
     if (assigneeId === "all") return tasks;
-    if (assigneeId === "none") return tasks.filter((t) => !t.assigneeId);
-    return tasks.filter((t) => t.assigneeId === assigneeId);
+    if (assigneeId === "none") return tasks.filter((t) => t.assigneeIds.length === 0);
+    return tasks.filter((t) => t.assigneeIds.includes(assigneeId));
   }, [tasks, assigneeId]);
 
   const chart = useMemo(() => (project ? buildBurndown(project.startDate, project.endDate, tasks) : null), [
@@ -34,10 +34,12 @@ export function BurndownView() {
   const byPerson = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const task of filteredTasks) {
-      const key = task.assigneeId ?? "none";
-      const list = map.get(key) ?? [];
-      list.push(task);
-      map.set(key, list);
+      const keys = task.assigneeIds.length ? task.assigneeIds : ["none"];
+      for (const key of keys) {
+        const list = map.get(key) ?? [];
+        list.push(task);
+        map.set(key, list);
+      }
     }
     return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [filteredTasks]);

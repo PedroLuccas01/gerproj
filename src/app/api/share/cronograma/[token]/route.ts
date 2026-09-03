@@ -5,7 +5,7 @@ import { mapProject, mapTask } from "@/lib/mappers";
 import { findShareByToken, isShareActive } from "@/lib/project-share";
 import { prisma } from "@/lib/prisma";
 import { requireShareAccess } from "@/lib/share-session";
-import { TASK_DEP_INCLUDE } from "@/lib/task-deps";
+import { TASK_INCLUDE } from "@/lib/task-query";
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: Params) {
       }),
       prisma.task.findMany({
         where: { projectId: share.projectId },
-        include: TASK_DEP_INCLUDE,
+        include: TASK_INCLUDE,
         orderBy: [{ phase: "asc" }, { order: "asc" }],
       }),
     ]);
@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: Params) {
       throw error;
     }
     const assigneeIds = [
-      ...new Set(tasks.map((task) => task.assigneeId).filter((id): id is string => Boolean(id))),
+      ...new Set(tasks.flatMap((task) => task.assignees.map((item) => item.collaboratorId))),
     ];
     const people =
       assigneeIds.length === 0

@@ -61,6 +61,10 @@ type StoreContextValue = {
     parentId?: string | null;
     name?: string;
   }) => Promise<Task>;
+  pasteTasks: (input: { projectId: string; phase: TaskPhase; tree: unknown }) => Promise<{
+    rootId: string;
+    tasks: Task[];
+  }>;
   updateTask: (id: string, patch: Partial<Task>) => void;
   toggleTask: (id: string) => Promise<void>;
   setTaskProgress: (id: string, progress: number) => Promise<void>;
@@ -242,7 +246,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           startDate: null,
           endDate: null,
           durationDays: 1,
-          assigneeId: null,
+          assigneeIds: [],
           progress: 0,
           completed: false,
           completedAt: null,
@@ -280,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               durationDays: task.durationDays,
               startDate: task.startDate,
               endDate: task.endDate,
-              assigneeId: task.assigneeId,
+              assigneeIds: task.assigneeIds,
               dependencies: task.dependencies,
               collapsed: task.collapsed,
               progress: task.progress,
@@ -305,6 +309,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     },
     [flushTask],
+  );
+
+  const pasteTasks = useCallback(
+    async (input: { projectId: string; phase: TaskPhase; tree: unknown }) => {
+      const created = await api<{ rootId: string; tasks: Task[] }>("/api/tasks/paste", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      setState((prev) => {
+        const existing = new Set(prev.tasks.map((task) => task.id));
+        const incoming = created.tasks.filter((task) => !existing.has(task.id));
+        return withSyncedProjectStatus(
+          { ...prev, tasks: [...prev.tasks, ...incoming] },
+          input.projectId,
+        );
+      });
+      return created;
+    },
+    [],
   );
 
   const updateTask = useCallback(
@@ -451,7 +474,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })),
       tasks: prev.tasks.map((t) => ({
         ...t,
-        assigneeId: t.assigneeId === id ? null : t.assigneeId,
+        assigneeIds: t.assigneeIds.filter((aid) => aid !== id),
       })),
     }));
   }, []);
@@ -496,6 +519,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateProject,
       deleteProject,
       addTask,
+      pasteTasks,
       updateTask,
       toggleTask,
       setTaskProgress,
@@ -514,6 +538,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateProject,
       deleteProject,
       addTask,
+      pasteTasks,
       updateTask,
       toggleTask,
       setTaskProgress,

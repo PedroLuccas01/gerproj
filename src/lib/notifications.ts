@@ -33,7 +33,7 @@ function relevantTasks(tasks: Task[], projects: Project[], collaboratorId: strin
     const project = projectById.get(task.projectId);
     if (!project || project.status === "cancelado") return false;
     if (isManagement) return true;
-    return Boolean(collaboratorId) && task.assigneeId === collaboratorId;
+    return Boolean(collaboratorId) && task.assigneeIds.includes(collaboratorId!);
   });
 }
 

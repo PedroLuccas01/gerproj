@@ -5,7 +5,9 @@ import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
-import { replaceTaskDependencies, TASK_DEP_INCLUDE } from "@/lib/task-deps";
+import { replaceTaskAssignees } from "@/lib/task-assignees";
+import { replaceTaskDependencies } from "@/lib/task-deps";
+import { TASK_INCLUDE } from "@/lib/task-query";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 import type { Task } from "@/lib/types";
 
@@ -30,7 +32,6 @@ export async function PATCH(request: Request, { params }: Params) {
         ...(patch.startDate !== undefined ? { startDate: parseOptionalDate(patch.startDate) } : {}),
         ...(patch.endDate !== undefined ? { endDate: parseOptionalDate(patch.endDate) } : {}),
         ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
-        ...(patch.assigneeId !== undefined ? { assigneeId: patch.assigneeId } : {}),
         ...(patch.progress !== undefined ? { progress: patch.progress, completed: patch.progress === 100 } : {}),
         ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
         ...(patch.completedAt !== undefined
@@ -43,12 +44,15 @@ export async function PATCH(request: Request, { params }: Params) {
     if (patch.dependencies !== undefined) {
       await replaceTaskDependencies(id, existing.projectId, patch.dependencies);
     }
+    if (patch.assigneeIds !== undefined) {
+      await replaceTaskAssignees(id, patch.assigneeIds);
+    }
     if (patch.completed !== undefined || patch.progress !== undefined) {
       await syncProjectStatusFromSchedule(existing.projectId, toAuditActor(access));
     }
     const mapped = await prisma.task.findUnique({
       where: { id },
-      include: TASK_DEP_INCLUDE,
+      include: TASK_INCLUDE,
     });
     return NextResponse.json(mapTask(mapped!));
   } catch (error) {

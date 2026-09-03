@@ -7,7 +7,7 @@ import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
 import { applySetProgress, applyToggleComplete } from "@/lib/task-complete";
-import { TASK_DEP_INCLUDE } from "@/lib/task-deps";
+import { TASK_INCLUDE } from "@/lib/task-query";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 
 type Params = { params: Promise<{ id: string }> };
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const rows = await prisma.task.findMany({
       where: { projectId: existing.projectId },
-      include: TASK_DEP_INCLUDE,
+      include: TASK_INCLUDE,
     });
     const current = rows.map(mapTask);
     const next =

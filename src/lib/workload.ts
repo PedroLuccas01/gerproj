@@ -78,7 +78,10 @@ export function buildWorkload(input: {
   return people
     .map((collaborator) => {
       const assigned = input.tasks.filter(
-        (task) => task.assigneeId === collaborator.id && !task.completed && isActiveProject(projectById.get(task.projectId)),
+        (task) =>
+          task.assigneeIds.includes(collaborator.id) &&
+          !task.completed &&
+          isActiveProject(projectById.get(task.projectId)),
       );
       const dated = assigned
         .map((task) => {

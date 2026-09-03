@@ -72,7 +72,7 @@ export interface Task {
   startDate: string | null;
   endDate: string | null;
   durationDays: number;
-  assigneeId: string | null;
+  assigneeIds: string[];
   progress: number;
   completed: boolean;
   completedAt: string | null;

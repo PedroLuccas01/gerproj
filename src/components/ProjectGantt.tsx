@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Link2, Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, ClipboardPaste, Copy, Link2, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   PHASE_COLOR,
   PHASE_HEADER,
@@ -22,10 +22,11 @@ import {
 } from "@/lib/dates";
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
+import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
 import type { Project, Task, TaskPhase } from "@/lib/types";
 import { ProgressSelect } from "./ui";
 
-const TABLE_W = 800;
+const TABLE_W = 1060;
 const ROW = 48;
 const PHASE_H = 40;
 
@@ -40,10 +41,15 @@ export function ProjectGantt({
   tasks?: Task[];
   people?: { id: string; name: string }[];
 }) {
-  const { state, addTask, updateTask, setTaskProgress, deleteTask } = useStore();
+  const { state, addTask, pasteTasks, updateTask, setTaskProgress, deleteTask } = useStore();
   const { confirm, notify } = useFeedback();
   const [depFor, setDepFor] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<TaskTreeNode | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const pendingNameFocus = useRef(false);
+  const knownTaskIds = useRef<Set<string> | null>(null);
 
   const tasks = useMemo(
     () => tasksOverride ?? state.tasks.filter((t) => t.projectId === project.id),
@@ -51,15 +57,77 @@ export function ProjectGantt({
   );
   const people = peopleOverride ?? state.collaborators;
 
-  async function createTask(input: { phase: TaskPhase; parentId?: string | null }) {
+  useLayoutEffect(() => {
+    const currentIds = new Set(tasks.map((task) => task.id));
+    if (knownTaskIds.current === null) {
+      knownTaskIds.current = currentIds;
+      return;
+    }
+    if (pendingNameFocus.current) {
+      const addedId = [...currentIds].find((id) => !knownTaskIds.current!.has(id));
+      if (addedId) setFocusTaskId(addedId);
+    }
+    knownTaskIds.current = currentIds;
+  }, [tasks]);
+
+  async function createTask(input: { phase: TaskPhase; parentId?: string | null; focusName?: boolean }) {
+    if (input.focusName) pendingNameFocus.current = true;
     try {
-      await addTask({ projectId: project.id, ...input });
+      const created = await addTask({
+        projectId: project.id,
+        phase: input.phase,
+        parentId: input.parentId,
+      });
+      if (input.focusName) {
+        setFocusTaskId(created.id);
+        pendingNameFocus.current = false;
+      }
     } catch (error) {
+      pendingNameFocus.current = false;
       notify({
         type: "error",
         title: "Não foi possível adicionar",
         description: error instanceof Error ? error.message : undefined,
       });
+    }
+  }
+
+  function copyTask(task: Task) {
+    if (task.id.startsWith("tmp_")) {
+      notify({ type: "warning", title: "Aguarde a atividade ser salva para copiar." });
+      return;
+    }
+    setClipboard(snapshotTaskTree(tasks, task));
+    const kids = childrenOf(tasks, task.id).length;
+    notify({
+      type: "success",
+      title: kids ? "Atividade e subtarefas copiadas" : "Atividade copiada",
+      description: "Use Colar para criar uma cópia independente.",
+    });
+  }
+
+  async function pasteIntoPhase(phase: TaskPhase) {
+    if (!clipboard || pasting) return;
+    setPasting(true);
+    pendingNameFocus.current = true;
+    try {
+      const created = await pasteTasks({
+        projectId: project.id,
+        phase,
+        tree: clipboard,
+      });
+      setFocusTaskId(created.rootId);
+      pendingNameFocus.current = false;
+      notify({ type: "success", title: "Atividade colada" });
+    } catch (error) {
+      pendingNameFocus.current = false;
+      notify({
+        type: "error",
+        title: "Não foi possível colar",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setPasting(false);
     }
   }
 
@@ -118,16 +186,16 @@ export function ProjectGantt({
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
       <div className="overflow-x-auto">
-        <div className="min-w-[1200px]">
+        <div className="min-w-[1440px]">
           <div className="flex border-b border-line bg-surface-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
             <div className="flex shrink-0" style={{ width: TABLE_W }}>
               <Col className="w-12">#</Col>
-              <Col className="flex-1">Nome da Tarefa</Col>
+              <Col className="min-w-[280px] flex-1">Nome da Tarefa</Col>
               <Col className="w-16">Duração</Col>
               <Col className="w-[108px]">Início</Col>
               <Col className="w-[108px]">Término</Col>
               <Col className="w-10">Dep.</Col>
-              <Col className="w-[150px]">Responsável</Col>
+              <Col className="w-[170px]">Responsável</Col>
               {readOnly ? null : <Col className="w-10" />}
             </div>
             <div className="relative h-10 flex-1">
@@ -157,14 +225,27 @@ export function ProjectGantt({
                   >
                     <span>{PHASE_LABEL[phase]}</span>
                     {readOnly ? null : (
-                      <button
-                        type="button"
-                        onClick={() => void createTask({ phase })}
-                        className="inline-flex items-center gap-1 rounded-md bg-surface/80 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-surface dark:text-blue-300"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Nova Tarefa
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {clipboard ? (
+                          <button
+                            type="button"
+                            disabled={pasting}
+                            onClick={() => void pasteIntoPhase(phase)}
+                            className="inline-flex items-center gap-1 rounded-md bg-surface/80 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-surface disabled:opacity-50 dark:text-blue-300"
+                          >
+                            <ClipboardPaste className="h-3.5 w-3.5" />
+                            Colar
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void createTask({ phase, focusName: true })}
+                          className="inline-flex items-center gap-1 rounded-md bg-surface/80 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-surface dark:text-blue-300"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Nova Tarefa
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="relative flex-1 border-b border-line-subtle" style={{ height: PHASE_H }}>
@@ -188,9 +269,16 @@ export function ProjectGantt({
                         depFor={depFor}
                         setDepFor={setDepFor}
                         readOnly={readOnly}
+                        shouldFocusName={focusTaskId === root.id}
+                        onNameFocused={() =>
+                          setFocusTaskId((current) => (current === root.id ? null : current))
+                        }
                         onProgress={(progress) => void setTaskProgress(root.id, progress)}
                         onUpdate={(patch) => updateTask(root.id, patch)}
                         onDelete={() => removeTask(root)}
+                        onCopy={() => copyTask(root)}
+                        onPaste={() => void pasteIntoPhase(phase)}
+                        canPaste={Boolean(clipboard) && !pasting}
                         onAddChild={() => void createTask({ phase, parentId: root.id })}
                         onToggleCollapse={() => {
                           if (readOnly) {
@@ -217,9 +305,16 @@ export function ProjectGantt({
                               depFor={depFor}
                               setDepFor={setDepFor}
                               readOnly={readOnly}
+                              shouldFocusName={focusTaskId === child.id}
+                              onNameFocused={() =>
+                                setFocusTaskId((current) => (current === child.id ? null : current))
+                              }
                               onProgress={(progress) => void setTaskProgress(child.id, progress)}
                               onUpdate={(patch) => updateTask(child.id, patch)}
                               onDelete={() => removeTask(child)}
+                              onCopy={() => copyTask(child)}
+                              onPaste={() => void pasteIntoPhase(phase)}
+                              canPaste={Boolean(clipboard) && !pasting}
                               onAddChild={() => undefined}
                               onToggleCollapse={() => undefined}
                             />
@@ -284,8 +379,13 @@ function TaskRowView({
   onProgress,
   onUpdate,
   onDelete,
+  onCopy,
+  onPaste,
+  canPaste = false,
   onAddChild,
   onToggleCollapse,
+  shouldFocusName = false,
+  onNameFocused,
   readOnly = false,
 }: {
   task: Task;
@@ -300,10 +400,35 @@ function TaskRowView({
   onProgress: (progress: number) => void;
   onUpdate: (patch: Partial<Task>) => void;
   onDelete: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  canPaste?: boolean;
   onAddChild: () => void;
   onToggleCollapse: () => void;
+  shouldFocusName?: boolean;
+  onNameFocused?: () => void;
   readOnly?: boolean;
 }) {
+  const nameInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    if (!shouldFocusName || readOnly) return;
+    const input = nameInputRef.current;
+    if (!input) return;
+    input.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    input.focus({ preventScroll: true });
+    if (input.value === "Nova tarefa") input.select();
+    else input.setSelectionRange(input.value.length, input.value.length);
+    onNameFocused?.();
+  }, [shouldFocusName, readOnly, onNameFocused]);
+
+  useLayoutEffect(() => {
+    const input = nameInputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.max(22, input.scrollHeight)}px`;
+  }, [task.name, readOnly]);
+
   const left =
     task.startDate != null ? positionPct(range.start, range.totalDays, task.startDate) : 0;
   const width =
@@ -314,52 +439,62 @@ function TaskRowView({
 
   return (
     <div className="flex border-b border-line-subtle hover:bg-hover">
-      <div className="flex shrink-0 items-center text-sm" style={{ width: TABLE_W, height: ROW }}>
-        <div className="w-12 px-2 text-center text-xs text-muted">{task.seq}</div>
-        <div className="flex min-w-0 flex-1 items-center gap-1 pr-2" style={{ paddingLeft: 8 + depth * 18 }}>
+      <div className="flex shrink-0 items-start py-1.5 text-sm" style={{ width: TABLE_W, minHeight: ROW }}>
+        <div className="flex h-[34px] w-12 items-center justify-center px-2 text-xs text-muted">{task.seq}</div>
+        <div className="flex min-w-[280px] flex-1 items-start gap-1 pr-2" style={{ paddingLeft: 8 + depth * 18 }}>
           {hasChildren ? (
-            <button type="button" onClick={onToggleCollapse} className="text-muted">
+            <button type="button" onClick={onToggleCollapse} className="mt-1.5 text-muted">
               {task.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           ) : (
-            <span className="w-4" />
+            <span className="mt-1.5 w-4 shrink-0" />
           )}
           {depth === 0 && !readOnly ? (
             <button
               type="button"
               onClick={onAddChild}
-              className="rounded p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              className="mt-1.5 shrink-0 rounded p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
               title="Adicionar subtarefa"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <span className="w-4" />
+            <span className="mt-1.5 w-4 shrink-0" />
           )}
-          <ProgressSelect
-            value={task.progress}
-            onChange={onProgress}
-            disabled={readOnly}
-          />
+          <div className="mt-0.5 shrink-0">
+            <ProgressSelect
+              value={task.progress}
+              onChange={onProgress}
+              disabled={readOnly}
+            />
+          </div>
           {readOnly ? (
             <span
-              className={`min-w-0 flex-1 truncate text-sm ${
+              title={task.name}
+              className={`min-w-0 flex-1 whitespace-pre-wrap break-words pt-1.5 text-sm leading-5 ${
                 task.completed ? "text-faint line-through" : "text-ink"
               }`}
             >
               {task.name}
             </span>
           ) : (
-            <input
+            <textarea
+              ref={nameInputRef}
+              rows={1}
+              title={task.name}
               value={task.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${
+              spellCheck={false}
+              onChange={(e) => onUpdate({ name: e.target.value.replace(/\n/g, " ") })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
+              className={`min-w-0 flex-1 resize-none overflow-hidden bg-transparent pt-1.5 text-sm leading-5 outline-none ${
                 task.completed ? "text-faint line-through" : "text-ink"
               }`}
             />
           )}
         </div>
-        <div className="flex w-16 items-center gap-0.5 px-1">
+        <div className="flex h-[34px] w-16 items-center gap-0.5 px-1">
           {readOnly ? (
             <>
               <span className="px-1 text-xs text-muted">{task.durationDays}</span>
@@ -378,13 +513,13 @@ function TaskRowView({
             </>
           )}
         </div>
-        <div className="w-[108px] px-1">
+        <div className="w-[108px] px-1 pt-0.5">
           <DateCell value={task.startDate} onChange={(startDate) => onUpdate({ startDate })} readOnly={readOnly} />
         </div>
-        <div className="w-[108px] px-1">
+        <div className="w-[108px] px-1 pt-0.5">
           <DateCell value={task.endDate} onChange={(endDate) => onUpdate({ endDate })} readOnly={readOnly} />
         </div>
-        <div className="relative w-10 px-1">
+        <div className="relative flex h-[34px] w-10 items-center px-1">
           <button
             type="button"
             onClick={() => {
@@ -427,40 +562,26 @@ function TaskRowView({
             </div>
           ) : null}
         </div>
-        <div className="w-[150px] px-1">
-          {readOnly ? (
-            <span className="block truncate px-1 text-xs text-ink">
-              {people.find((p) => p.id === task.assigneeId)?.name ?? "Sem responsável"}
-            </span>
-          ) : (
-            <select
-              value={task.assigneeId ?? ""}
-              onChange={(e) => onUpdate({ assigneeId: e.target.value || null })}
-              className="w-full rounded-md border border-line bg-surface px-1 py-1 text-xs text-ink outline-none"
-            >
-              <option value="">Sem responsável</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
+        <div className="flex min-h-[34px] w-[170px] items-start px-1 pt-0.5">
+          <AssigneePicker
+            people={people}
+            value={task.assigneeIds}
+            onChange={(assigneeIds) => onUpdate({ assigneeIds })}
+            readOnly={readOnly}
+          />
         </div>
         {readOnly ? null : (
-          <div className="w-10 px-1">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
-              title="Excluir"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+          <div className="flex h-[34px] w-10 items-center px-1">
+            <TaskActions
+              canPaste={canPaste}
+              onCopy={onCopy}
+              onPaste={onPaste}
+              onDelete={onDelete}
+            />
           </div>
         )}
       </div>
-      <div className="relative flex-1" style={{ height: ROW }}>
+      <div className="relative min-h-[48px] flex-1 self-stretch">
         <TodayLine left={todayLeft} />
         {task.startDate && task.endDate ? (
           <div
@@ -485,6 +606,159 @@ function TaskRowView({
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function AssigneePicker({
+  people,
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  people: { id: string; name: string }[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  readOnly?: boolean;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [open]);
+
+  const names = value
+    .map((id) => people.find((person) => person.id === id)?.name)
+    .filter(Boolean) as string[];
+  const label =
+    names.length === 0 ? "Sem responsável" : names.length === 1 ? names[0] : `${names.length} pessoas`;
+
+  if (readOnly) {
+    return (
+      <span className="block px-1 text-xs leading-5 text-ink" title={names.join(", ") || undefined}>
+        {names.length ? names.join(", ") : "Sem responsável"}
+      </span>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} className="relative w-full">
+      <button
+        type="button"
+        title={names.length ? names.join(", ") : "Selecionar responsáveis"}
+        onClick={() => setOpen((prev) => !prev)}
+        className={`flex w-full items-center justify-between gap-1 rounded-md border border-line bg-surface px-1.5 py-1 text-left text-xs outline-none hover:border-brand ${
+          value.length ? "text-ink" : "text-faint"
+        }`}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-faint" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-8 z-30 w-56 rounded-lg border border-line bg-surface p-2 shadow-lg">
+          <div className="mb-1 text-[11px] font-semibold text-muted">Responsáveis</div>
+          <div className="max-h-40 overflow-y-auto">
+            {people.map((person) => (
+              <label key={person.id} className="flex items-center gap-2 py-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={value.includes(person.id)}
+                  onChange={() => {
+                    const next = value.includes(person.id)
+                      ? value.filter((id) => id !== person.id)
+                      : [...value, person.id];
+                    onChange(next);
+                  }}
+                />
+                <span className="truncate">{person.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TaskActions({
+  canPaste,
+  onCopy,
+  onPaste,
+  onDelete,
+}: {
+  canPaste: boolean;
+  onCopy: () => void;
+  onPaste: () => void;
+  onDelete: () => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        aria-label="Ações da atividade"
+        title="Ações"
+        onClick={() => setOpen((prev) => !prev)}
+        className="rounded p-1 text-faint hover:bg-hover hover:text-ink"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-8 z-30 w-40 rounded-lg border border-line bg-surface py-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onCopy();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink hover:bg-hover"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copiar
+          </button>
+          <button
+            type="button"
+            disabled={!canPaste}
+            onClick={() => {
+              if (!canPaste) return;
+              setOpen(false);
+              onPaste();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink hover:bg-hover disabled:cursor-not-allowed disabled:text-faint"
+          >
+            <ClipboardPaste className="h-3.5 w-3.5" />
+            Colar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Excluir
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

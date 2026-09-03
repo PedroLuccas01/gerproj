@@ -64,7 +64,10 @@ function buildRows(input: ScheduleExportInput): ScheduleRow[] {
     fim: formatBr(task.endDate) || "-",
     duracao: task.durationDays,
     avanco: `${taskProgressOf(task)}%`,
-    responsavel: task.assigneeId ? (names.get(task.assigneeId) ?? "-") : "-",
+    responsavel:
+      task.assigneeIds.length > 0
+        ? task.assigneeIds.map((id) => names.get(id)).filter(Boolean).join(", ") || "-"
+        : "-",
     situacao: situation(task),
   }));
 }
