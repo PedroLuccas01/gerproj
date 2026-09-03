@@ -94,7 +94,7 @@ export function LoginScreen() {
 
         <section className="flex h-full min-w-0 flex-1 flex-col bg-white px-8 py-8 sm:px-12">
           <div className="mb-6 lg:hidden">
-            <BrandMark />
+            <BrandMark onLight />
           </div>
 
           <div className="mx-auto flex w-full max-w-[380px] flex-1 flex-col justify-center">

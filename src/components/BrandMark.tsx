@@ -3,10 +3,12 @@ import { cn } from "./ui";
 export function BrandMark({
   className,
   inverted = false,
+  onLight = false,
   size = "md",
 }: {
   className?: string;
   inverted?: boolean;
+  onLight?: boolean;
   size?: "md" | "lg";
 }) {
   return (
@@ -16,6 +18,7 @@ export function BrandMark({
           "font-capsula tracking-[0.08em] text-ink",
           size === "lg" ? "text-[18px]" : "text-[13px]",
           inverted && "text-white",
+          onLight && "text-slate-900",
         )}
       >
         CAPSULA
@@ -25,6 +28,7 @@ export function BrandMark({
           "font-slogan text-muted",
           size === "lg" ? "mt-2 text-[13px]" : "mt-1.5 text-[11px]",
           inverted && "text-white/75",
+          onLight && "text-slate-500",
         )}
       >
         Tecnologia
