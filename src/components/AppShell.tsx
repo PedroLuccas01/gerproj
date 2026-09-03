@@ -3,6 +3,7 @@
 import {
   Building2,
   FolderKanban,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
@@ -12,10 +13,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { BrandMark } from "./BrandMark";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "./ui";
@@ -34,6 +36,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -42,6 +47,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [profileOpen]);
 
   function toggle() {
     setCollapsed((prev) => {
@@ -126,13 +142,35 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ThemeToggle className="hidden w-[168px] sm:grid" />
           <NotificationBell />
           {user ? (
-            <div className="flex min-w-0 items-center gap-2 pl-1">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-                {initials(user.name)}
-              </span>
-              <span className="hidden max-w-[180px] truncate text-sm font-medium text-ink sm:inline">
-                {user.name}
-              </span>
+            <div ref={profileRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileOpen((prev) => !prev)}
+                className="flex min-w-0 items-center gap-2 rounded-lg py-1 pl-1 pr-1.5 hover:bg-hover"
+                title="Perfil"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                  {initials(user.name)}
+                </span>
+                <span className="hidden max-w-[180px] truncate text-sm font-medium text-ink sm:inline">
+                  {user.name}
+                </span>
+              </button>
+              {profileOpen ? (
+                <div className="absolute right-0 top-full z-40 mt-1 min-w-[180px] rounded-lg border border-line bg-surface py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setPasswordOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ink hover:bg-hover"
+                  >
+                    <KeyRound className="h-3.5 w-3.5 text-muted" />
+                    Alterar senha
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <button
@@ -151,6 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <div className="min-h-0 flex-1">{children}</div>
       </div>
+      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </div>
   );
 }

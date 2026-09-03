@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus, Shield, Trash2 } from "lucide-react";
+import { Pencil, Shield, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { Button, Field, Select, TextInput } from "@/components/ui";
@@ -31,11 +31,13 @@ const emptyDraft = (): CollaboratorDraft => ({
 export default function ColaboradoresPage() {
   const { user } = useAuth();
   const isAdmin = Boolean(user?.isAdmin);
-  const { state, addCollaborator, updateCollaborator, deleteCollaborator } = useStore();
+  const { state, updateCollaborator, deleteCollaborator } = useStore();
   const { confirm, notify } = useFeedback();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Collaborator | null>(null);
   const [draft, setDraft] = useState<CollaboratorDraft>(emptyDraft());
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<AccountUser[]>([]);
   const [approveRole, setApproveRole] = useState<Record<string, string>>({});
@@ -56,12 +58,6 @@ export default function ColaboradoresPage() {
     void loadUsers();
   }, [loadUsers]);
 
-  function startCreate() {
-    setEditing(null);
-    setDraft(emptyDraft());
-    setOpen(true);
-  }
-
   function startEdit(person: Collaborator) {
     setEditing(person);
     setDraft({
@@ -72,20 +68,30 @@ export default function ColaboradoresPage() {
       phone: person.phone,
       active: person.active,
     });
+    setPassword("");
+    setPasswordConfirm("");
     setOpen(true);
   }
 
   async function save() {
-    if (!draft.name.trim() || !draft.role.trim() || saving) return;
+    if (!editing || !draft.name.trim() || !draft.role.trim() || saving) return;
+    const nextPassword = password.trim();
+    if (nextPassword && nextPassword.length < 6) {
+      notify({ type: "warning", title: "A senha deve ter pelo menos 6 caracteres." });
+      return;
+    }
+    if (nextPassword && nextPassword !== passwordConfirm.trim()) {
+      notify({ type: "warning", title: "As senhas não coincidem." });
+      return;
+    }
     setSaving(true);
     try {
-      if (editing) await updateCollaborator(editing.id, draft);
-      else await addCollaborator(draft);
-      setOpen(false);
-      notify({
-        type: "success",
-        title: editing ? "Colaborador atualizado" : "Colaborador cadastrado",
+      await updateCollaborator(editing.id, {
+        ...draft,
+        ...(nextPassword ? { password: nextPassword } : {}),
       });
+      setOpen(false);
+      notify({ type: "success", title: "Colaborador atualizado" });
     } catch (error) {
       notify({
         type: "error",
@@ -159,17 +165,11 @@ export default function ColaboradoresPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-navy">Colaboradores</h1>
-          <p className="text-sm text-muted">
-            Aprove novos cadastros, defina o cargo e mantenha a equipe.
-          </p>
-        </div>
-        <Button onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          Novo colaborador
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold text-navy">Colaboradores</h1>
+        <p className="text-sm text-muted">
+          Aprove novos cadastros, defina o cargo e mantenha a equipe.
+        </p>
       </div>
 
       <section className="rounded-xl border border-line bg-surface p-5">
@@ -326,8 +326,8 @@ export default function ColaboradoresPage() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "Editar colaborador" : "Novo colaborador"}
-        subtitle="Informe cargo, área e dados de contato."
+        title="Editar colaborador"
+        subtitle="Atualize cargo, área, contato e, se precisar, a senha de acesso."
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -382,6 +382,24 @@ export default function ColaboradoresPage() {
               <option value="1">Ativo</option>
               <option value="0">Inativo</option>
             </Select>
+          </Field>
+          <Field label="Nova senha">
+            <TextInput
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Deixe em branco para manter"
+            />
+          </Field>
+          <Field label="Confirmar senha">
+            <TextInput
+              type="password"
+              autoComplete="new-password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              placeholder="Repita a nova senha"
+            />
           </Field>
         </div>
       </Modal>

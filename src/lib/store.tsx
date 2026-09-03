@@ -56,7 +56,7 @@ type StoreContextValue = {
   toggleTask: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   addCollaborator: (draft: CollaboratorDraft) => Promise<Collaborator>;
-  updateCollaborator: (id: string, patch: Partial<Collaborator>) => Promise<void>;
+  updateCollaborator: (id: string, patch: Partial<Collaborator> & { password?: string }) => Promise<void>;
   deleteCollaborator: (id: string) => Promise<void>;
   addClient: (draft: ClientDraft) => Promise<Client>;
   updateClient: (id: string, patch: Partial<Client>) => Promise<void>;
@@ -384,16 +384,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-  const updateCollaborator = useCallback(async (id: string, patch: Partial<Collaborator>) => {
-    const saved = await api<Collaborator>(`/api/collaborators/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    });
-    setState((prev) => ({
-      ...prev,
-      collaborators: prev.collaborators.map((c) => (c.id === id ? saved : c)),
-    }));
-  }, []);
+  const updateCollaborator = useCallback(
+    async (id: string, patch: Partial<Collaborator> & { password?: string }) => {
+      const saved = await api<Collaborator>(`/api/collaborators/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setState((prev) => ({
+        ...prev,
+        collaborators: prev.collaborators.map((c) => (c.id === id ? saved : c)),
+      }));
+    },
+    [],
+  );
 
   const deleteCollaborator = useCallback(async (id: string) => {
     await api(`/api/collaborators/${id}`, { method: "DELETE" });
