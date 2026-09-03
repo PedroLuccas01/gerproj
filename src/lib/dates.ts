@@ -87,6 +87,32 @@ export function eachDay(start: string, end: string): string[] {
   return days;
 }
 
+export function startOfWeek(iso: string): string {
+  const date = toDate(iso);
+  const weekday = date.getDay();
+  const offset = weekday === 0 ? -6 : 1 - weekday;
+  date.setDate(date.getDate() + offset);
+  return toIso(date);
+}
+
+export function weekEnd(weekStart: string): string {
+  return addDaysIso(weekStart, 6);
+}
+
+export function eachWeek(start: string, count: number): string[] {
+  const weeks: string[] = [];
+  let cursor = startOfWeek(start);
+  for (let i = 0; i < count; i++) {
+    weeks.push(cursor);
+    cursor = addDaysIso(cursor, 7);
+  }
+  return weeks;
+}
+
+export function weekLabel(weekStart: string): string {
+  return `${formatBr(weekStart).slice(0, 5)}–${formatBr(weekEnd(weekStart)).slice(0, 5)}`;
+}
+
 export function rangeForProjects(
   startDates: string[],
   endDates: string[],

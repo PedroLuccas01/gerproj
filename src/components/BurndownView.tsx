@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { PHASE_COLOR } from "@/lib/constants";
 import { diffDays, eachDay, formatBr, todayIso } from "@/lib/dates";
 import { useStore } from "@/lib/store";
@@ -47,10 +48,13 @@ export function BurndownView() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold text-navy">Burndown e carga da equipe</h1>
+        <h1 className="text-2xl font-semibold text-navy">Burndown</h1>
         <p className="mt-1 text-sm text-muted">
-          Visualize o consumo do trabalho ao longo do prazo e gerencie as tarefas atribuídas a cada
-          colaborador.
+          Consumo do trabalho ao longo do prazo deste projeto. A carga entre projetos fica em{" "}
+          <Link href="/carga" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+            Carga
+          </Link>
+          .
         </p>
       </div>
 
