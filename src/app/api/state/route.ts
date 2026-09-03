@@ -8,6 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { scheduleProgress } from "@/lib/schedule-progress";
 import { requireAccess } from "@/lib/session";
 import { syncAllParentProgress } from "@/lib/task-complete";
+import {
+  parentScheduleChanged,
+  syncAllParentSchedules,
+} from "@/lib/task-schedule";
 import { TASK_INCLUDE } from "@/lib/task-query";
 
 export async function GET() {
@@ -27,7 +31,7 @@ export async function GET() {
     ]);
 
     const mappedTasks = tasks.map(mapTask);
-    const syncedTasks = syncAllParentProgress(mappedTasks, todayIso());
+    const syncedTasks = syncAllParentProgress(syncAllParentSchedules(mappedTasks), todayIso());
     const parentUpdates = syncedTasks.filter((task) => {
       const before = mappedTasks.find((item) => item.id === task.id);
       const hasKids = mappedTasks.some((item) => item.parentId === task.id);
@@ -35,7 +39,8 @@ export async function GET() {
       return (
         before.progress !== task.progress ||
         before.completed !== task.completed ||
-        before.completedAt !== task.completedAt
+        before.completedAt !== task.completedAt ||
+        parentScheduleChanged(before, task)
       );
     });
     if (parentUpdates.length) {
@@ -47,6 +52,9 @@ export async function GET() {
               progress: task.progress,
               completed: task.completed,
               completedAt: parseOptionalDate(task.completedAt),
+              startDate: parseOptionalDate(task.startDate),
+              endDate: parseOptionalDate(task.endDate),
+              durationDays: task.durationDays,
             },
           }),
         ),

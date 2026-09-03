@@ -14,6 +14,13 @@ import { useAuth } from "./auth";
 import { durationFromRange, endFromDuration, todayIso } from "./dates";
 import { statusAfterScheduleChange } from "./schedule-progress";
 import { applySetProgress, applyToggleComplete, syncAllParentProgress } from "./task-complete";
+import {
+  applyTaskSchedulePatch,
+  initialSubtaskSchedule,
+  parentScheduleChanged,
+  parentSchedulePatch,
+  syncAllParentSchedules,
+} from "./task-schedule";
 import type {
   AppState,
   Client,
@@ -109,15 +116,49 @@ function applyProjectPatch(project: Project, patch: Partial<Project>): Project {
 }
 
 function applyTaskPatch(task: Task, patch: Partial<Task>): Task {
-  const next = { ...task, ...patch };
-  if (patch.startDate !== undefined || patch.endDate !== undefined) {
-    if (next.startDate && next.endDate) {
-      next.durationDays = durationFromRange(next.startDate, next.endDate);
+  return applyTaskSchedulePatch(task, patch);
+}
+
+function syncAllParents(tasks: Task[], today: string): Task[] {
+  return syncAllParentProgress(syncAllParentSchedules(tasks), today);
+}
+
+function queueParentRollups(
+  before: Task[],
+  after: Task[],
+  pending: Record<string, Partial<Task>>,
+  timers: Record<string, number>,
+  flush: (id: string) => void,
+) {
+  for (const task of after) {
+    const hasKids = after.some((item) => item.parentId === task.id);
+    if (!hasKids) continue;
+    const prev = before.find((item) => item.id === task.id);
+    if (!prev) continue;
+    const scheduleChanged = parentScheduleChanged(prev, task);
+    const progressChanged =
+      prev.progress !== task.progress ||
+      prev.completed !== task.completed ||
+      prev.completedAt !== task.completedAt;
+    if (!scheduleChanged && !progressChanged) continue;
+    pending[task.id] = {
+      ...pending[task.id],
+      ...(scheduleChanged ? parentSchedulePatch(task) : {}),
+      ...(progressChanged
+        ? {
+            progress: task.progress,
+            completed: task.completed,
+            completedAt: task.completedAt,
+          }
+        : {}),
+    };
+    window.clearTimeout(timers[task.id]);
+    if (!isTempTaskId(task.id)) {
+      timers[task.id] = window.setTimeout(() => {
+        void flush(task.id);
+      }, 350);
     }
-  } else if (patch.durationDays !== undefined && next.startDate) {
-    next.endDate = endFromDuration(next.startDate, next.durationDays);
   }
-  return next;
 }
 
 function withSyncedProjectStatus(state: AppState, projectId: string): AppState {
@@ -147,7 +188,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const data = await api<AppState>("/api/state");
     setState({
       ...data,
-      tasks: syncAllParentProgress(data.tasks, todayIso()),
+      tasks: syncAllParents(data.tasks, todayIso()),
     });
   }, []);
 
@@ -239,6 +280,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const siblings = projectTasks.filter(
           (task) => task.phase === input.phase && (task.parentId ?? null) === parentId,
         );
+        const parent = parentId ? projectTasks.find((task) => task.id === parentId) : undefined;
+        const inheritedSchedule = initialSubtaskSchedule(parent);
         const optimistic: Task = {
           id: tempId,
           projectId: input.projectId,
@@ -246,9 +289,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           phase: input.phase,
           seq: projectTasks.reduce((max, task) => Math.max(max, task.seq), 0) + 1,
           name: input.name ?? "Nova tarefa",
-          startDate: null,
-          endDate: null,
-          durationDays: 1,
+          startDate: inheritedSchedule.startDate,
+          endDate: inheritedSchedule.endDate,
+          durationDays: inheritedSchedule.durationDays,
           assigneeIds: [],
           progress: 0,
           completed: false,
@@ -296,18 +339,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               completedAt: task.completedAt,
             };
           });
-          const synced = syncAllParentProgress(mapped, todayIso());
+          const synced = syncAllParents(mapped, todayIso());
           if (parentId) {
             const before = prev.tasks.find((task) => task.id === parentId);
             const after = synced.find((task) => task.id === parentId);
-            if (
-              before &&
-              after &&
-              (before.progress !== after.progress ||
+            if (before && after) {
+              const scheduleChanged = parentScheduleChanged(before, after);
+              const progressChanged =
+                before.progress !== after.progress ||
                 before.completed !== after.completed ||
-                before.completedAt !== after.completedAt)
-            ) {
-              parentPatch.current = after;
+                before.completedAt !== after.completedAt;
+              if (scheduleChanged || progressChanged) {
+                parentPatch.current = after;
+              }
             }
           }
           return withSyncedProjectStatus({ ...prev, tasks: synced }, input.projectId);
@@ -317,6 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           void api(`/api/tasks/${parent.id}`, {
             method: "PATCH",
             body: JSON.stringify({
+              ...parentSchedulePatch(parent),
               progress: parent.progress,
               completed: parent.completed,
               completedAt: parent.completedAt,
@@ -353,7 +398,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return withSyncedProjectStatus(
           {
             ...prev,
-            tasks: syncAllParentProgress([...prev.tasks, ...incoming], todayIso()),
+            tasks: syncAllParents([...prev.tasks, ...incoming], todayIso()),
           },
           input.projectId,
         );
@@ -365,11 +410,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateTask = useCallback(
     (id: string, patch: Partial<Task>) => {
-      pendingTasks.current[id] = { ...pendingTasks.current[id], ...patch };
-      setState((prev) => ({
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.id === id ? applyTaskPatch(t, patch) : t)),
-      }));
+      setState((prev) => {
+        const before = prev.tasks;
+        let tasks = before.map((task) => (task.id === id ? applyTaskPatch(task, patch) : task));
+        tasks = syncAllParents(tasks, todayIso());
+        const updated = tasks.find((task) => task.id === id);
+        const scheduleTouched =
+          patch.startDate !== undefined ||
+          patch.endDate !== undefined ||
+          patch.durationDays !== undefined;
+        pendingTasks.current[id] = {
+          ...pendingTasks.current[id],
+          ...patch,
+          ...(scheduleTouched && updated
+            ? parentSchedulePatch(updated)
+            : {}),
+        };
+        queueParentRollups(before, tasks, pendingTasks.current, taskTimers.current, flushTask);
+        return { ...prev, tasks };
+      });
       window.clearTimeout(taskTimers.current[id]);
       if (isTempTaskId(id)) return;
       taskTimers.current[id] = window.setTimeout(() => {

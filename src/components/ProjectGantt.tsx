@@ -21,6 +21,7 @@ import {
   widthPct,
 } from "@/lib/dates";
 import { isParentComplete, progressWithChildren, rawProgressWithChildren } from "@/lib/task-complete";
+import { parentScheduleOf } from "@/lib/task-schedule";
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
 import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
@@ -453,16 +454,21 @@ function TaskRowView({
     input.style.height = `${Math.max(22, input.scrollHeight)}px`;
   }, [task.name, readOnly]);
 
-  const left =
-    task.startDate != null ? positionPct(range.start, range.totalDays, task.startDate) : 0;
-  const width =
-    task.startDate && task.endDate
-      ? widthPct(range.totalDays, Math.max(1, diffDays(task.startDate, task.endDate)))
-      : 0;
-  const color = PHASE_COLOR[task.phase as TaskPhase];
   const displayProgress = hasChildren ? progressWithChildren(task, allTasks) : task.progress;
   const exactParentProgress = hasChildren ? rawProgressWithChildren(task, allTasks) : null;
   const isDone = hasChildren ? isParentComplete(task, allTasks) : task.completed;
+  const schedule = hasChildren ? parentScheduleOf(task, allTasks) : task;
+  const displayStartDate = schedule.startDate;
+  const displayEndDate = schedule.endDate;
+  const displayDurationDays = schedule.durationDays;
+  const color = PHASE_COLOR[task.phase as TaskPhase];
+
+  const left =
+    displayStartDate != null ? positionPct(range.start, range.totalDays, displayStartDate) : 0;
+  const width =
+    displayStartDate && displayEndDate
+      ? widthPct(range.totalDays, Math.max(1, diffDays(displayStartDate, displayEndDate)))
+      : 0;
 
   return (
     <div className="flex border-b border-line-subtle hover:bg-hover">
@@ -527,9 +533,9 @@ function TaskRowView({
           )}
         </div>
         <div className="flex h-[34px] w-16 items-center gap-0.5 px-1">
-          {readOnly ? (
+          {readOnly || hasChildren ? (
             <>
-              <span className="px-1 text-xs text-muted">{task.durationDays}</span>
+              <span className="px-1 text-xs text-muted">{displayDurationDays}</span>
               <span className="text-[11px] text-faint">d</span>
             </>
           ) : (
@@ -537,7 +543,7 @@ function TaskRowView({
               <input
                 type="number"
                 min={1}
-                value={task.durationDays}
+                value={displayDurationDays}
                 onChange={(e) => onUpdate({ durationDays: Number(e.target.value) || 1 })}
                 className="w-10 rounded border border-transparent bg-transparent px-1 py-1 text-xs text-muted outline-none hover:border-line focus:border-brand"
               />
@@ -546,10 +552,18 @@ function TaskRowView({
           )}
         </div>
         <div className="w-[108px] px-1 pt-0.5">
-          <DateCell value={task.startDate} onChange={(startDate) => onUpdate({ startDate })} readOnly={readOnly} />
+          <DateCell
+            value={displayStartDate}
+            onChange={(startDate) => onUpdate({ startDate })}
+            readOnly={readOnly || hasChildren}
+          />
         </div>
         <div className="w-[108px] px-1 pt-0.5">
-          <DateCell value={task.endDate} onChange={(endDate) => onUpdate({ endDate })} readOnly={readOnly} />
+          <DateCell
+            value={displayEndDate}
+            onChange={(endDate) => onUpdate({ endDate })}
+            readOnly={readOnly || hasChildren}
+          />
         </div>
         <div className="relative flex h-[34px] w-10 items-center px-1">
           <button
@@ -618,7 +632,7 @@ function TaskRowView({
         style={{ width: timelineWidth }}
       >
         <TodayLine left={todayLeft} />
-        {task.startDate && task.endDate ? (
+        {displayStartDate && displayEndDate ? (
           <div
             className="absolute top-3 h-6 overflow-hidden rounded-md"
             style={{
@@ -627,15 +641,15 @@ function TaskRowView({
               background: color,
               opacity: 0.28,
             }}
-            title={`${task.name} · ${formatBr(task.startDate)} – ${formatBr(task.endDate)} · ${task.progress}%`}
+            title={`${task.name} · ${formatBr(displayStartDate)} – ${formatBr(displayEndDate)} · ${displayProgress}%`}
           />
         ) : null}
-        {task.startDate && task.endDate && task.progress > 0 ? (
+        {displayStartDate && displayEndDate && displayProgress > 0 ? (
           <div
             className="absolute top-3 h-6 rounded-md"
             style={{
               left: `${left}%`,
-              width: `${Math.max(width * (task.progress / 100), 0.4)}%`,
+              width: `${Math.max(width * (displayProgress / 100), 0.4)}%`,
               background: color,
             }}
           />

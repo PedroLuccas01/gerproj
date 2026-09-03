@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
 import { toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { todayIso } from "@/lib/dates";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
 import { replaceTaskAssignees } from "@/lib/task-assignees";
 import { replaceTaskDependencies } from "@/lib/task-deps";
+import { syncAllParentProgress } from "@/lib/task-complete";
 import { TASK_INCLUDE } from "@/lib/task-query";
+import { applyTaskSchedulePatch, parentScheduleChanged, syncAllParentSchedules } from "@/lib/task-schedule";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 import type { Task } from "@/lib/types";
 
@@ -19,8 +22,11 @@ export async function PATCH(request: Request, { params }: Params) {
     requireManagement(access);
     const { id } = await params;
     const patch = (await request.json()) as Partial<Task>;
-    const existing = await prisma.task.findUnique({ where: { id } });
+    const existing = await prisma.task.findUnique({ where: { id }, include: TASK_INCLUDE });
     if (!existing) return jsonError("Tarefa não encontrada.", 404);
+
+    const current = mapTask(existing);
+    const next = applyTaskSchedulePatch(current, patch);
 
     await prisma.task.update({
       where: { id },
@@ -29,9 +35,13 @@ export async function PATCH(request: Request, { params }: Params) {
         ...(patch.phase !== undefined ? { phase: patch.phase } : {}),
         ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}),
         ...(patch.seq !== undefined ? { seq: patch.seq } : {}),
-        ...(patch.startDate !== undefined ? { startDate: parseOptionalDate(patch.startDate) } : {}),
-        ...(patch.endDate !== undefined ? { endDate: parseOptionalDate(patch.endDate) } : {}),
-        ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
+        ...(patch.startDate !== undefined || patch.endDate !== undefined || patch.durationDays !== undefined
+          ? {
+              startDate: parseOptionalDate(next.startDate),
+              endDate: parseOptionalDate(next.endDate),
+              durationDays: next.durationDays,
+            }
+          : {}),
         ...(patch.progress !== undefined ? { progress: patch.progress, completed: patch.progress === 100 } : {}),
         ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
         ...(patch.completedAt !== undefined
@@ -50,6 +60,41 @@ export async function PATCH(request: Request, { params }: Params) {
     if (patch.completed !== undefined || patch.progress !== undefined) {
       await syncProjectStatusFromSchedule(existing.projectId, toAuditActor(access));
     }
+
+    const rows = await prisma.task.findMany({
+      where: { projectId: existing.projectId },
+      include: TASK_INCLUDE,
+    });
+    const synced = syncAllParentProgress(syncAllParentSchedules(rows.map(mapTask)), todayIso());
+    const parentUpdates = synced.filter((task) => {
+      const before = rows.map(mapTask).find((item) => item.id === task.id);
+      const hasKids = rows.some((item) => item.parentId === task.id);
+      if (!hasKids || !before) return false;
+      return (
+        before.progress !== task.progress ||
+        before.completed !== task.completed ||
+        before.completedAt !== task.completedAt ||
+        parentScheduleChanged(before, task)
+      );
+    });
+    if (parentUpdates.length) {
+      await prisma.$transaction(
+        parentUpdates.map((task) =>
+          prisma.task.update({
+            where: { id: task.id },
+            data: {
+              progress: task.progress,
+              completed: task.completed,
+              completedAt: parseOptionalDate(task.completedAt),
+              startDate: parseOptionalDate(task.startDate),
+              endDate: parseOptionalDate(task.endDate),
+              durationDays: task.durationDays,
+            },
+          }),
+        ),
+      );
+    }
+
     const mapped = await prisma.task.findUnique({
       where: { id },
       include: TASK_INCLUDE,
