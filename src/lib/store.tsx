@@ -119,8 +119,8 @@ function applyTaskPatch(task: Task, patch: Partial<Task>): Task {
   return applyTaskSchedulePatch(task, patch);
 }
 
-function syncAllParents(tasks: Task[], today: string): Task[] {
-  return syncAllParentProgress(syncAllTaskSchedules(tasks), today);
+function syncAllParents(tasks: Task[], today: string, freezeParentId?: string): Task[] {
+  return syncAllParentProgress(syncAllTaskSchedules(tasks, freezeParentId), today);
 }
 
 function queueParentRollups(
@@ -412,13 +412,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (id: string, patch: Partial<Task>) => {
       setState((prev) => {
         const before = prev.tasks;
-        let tasks = before.map((task) => (task.id === id ? applyTaskPatch(task, patch) : task));
-        tasks = syncAllParents(tasks, todayIso());
-        const updated = tasks.find((task) => task.id === id);
+        const hasKids = before.some((task) => task.parentId === id);
         const scheduleTouched =
           patch.startDate !== undefined ||
           patch.endDate !== undefined ||
           patch.durationDays !== undefined;
+        let tasks = before.map((task) => (task.id === id ? applyTaskPatch(task, patch) : task));
+        tasks = syncAllParents(tasks, todayIso(), hasKids && scheduleTouched ? id : undefined);
+        const updated = tasks.find((task) => task.id === id);
         pendingTasks.current[id] = {
           ...pendingTasks.current[id],
           ...patch,

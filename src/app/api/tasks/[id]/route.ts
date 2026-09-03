@@ -65,9 +65,18 @@ export async function PATCH(request: Request, { params }: Params) {
       where: { projectId: existing.projectId },
       include: TASK_INCLUDE,
     });
-    const synced = syncAllParentProgress(syncAllTaskSchedules(rows.map(mapTask)), todayIso());
+    const mappedRows = rows.map(mapTask);
+    const hasKids = mappedRows.some((task) => task.parentId === id);
+    const scheduleTouched =
+      patch.startDate !== undefined ||
+      patch.endDate !== undefined ||
+      patch.durationDays !== undefined;
+    const synced = syncAllParentProgress(
+      syncAllTaskSchedules(mappedRows, hasKids && scheduleTouched ? id : undefined),
+      todayIso(),
+    );
     const taskUpdates = synced.filter((task) => {
-      const before = rows.map(mapTask).find((item) => item.id === task.id);
+      const before = mappedRows.find((item) => item.id === task.id);
       if (!before) return false;
       return (
         before.progress !== task.progress ||

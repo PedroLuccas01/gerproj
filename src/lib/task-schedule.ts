@@ -42,8 +42,19 @@ export function normalizeTaskSchedule(task: Task): Task {
   return { ...task, endDate };
 }
 
-export function syncAllTaskSchedules(tasks: Task[]): Task[] {
-  return syncAllParentSchedules(tasks.map(normalizeTaskSchedule));
+export function syncAllTaskSchedules(tasks: Task[], freezeParentId?: string): Task[] {
+  const normalized = tasks.map(normalizeTaskSchedule);
+  const parentIds = normalized
+    .filter((task) => childrenOf(normalized, task.id).length > 0)
+    .map((task) => task.id)
+    .sort((a, b) => taskDepth(normalized, b) - taskDepth(normalized, a));
+
+  let next = normalized;
+  for (const parentId of parentIds) {
+    if (parentId === freezeParentId) continue;
+    next = expandParentSchedule(next, parentId);
+  }
+  return next;
 }
 
 export function taskScheduleChanged(before: Task, after: Task): boolean {
@@ -54,44 +65,41 @@ export function taskScheduleChanged(before: Task, after: Task): boolean {
   );
 }
 
-export function parentScheduleOf(
-  task: Task,
-  tasks: Task[],
-): Pick<Task, "startDate" | "endDate" | "durationDays"> {
-  const kids = childrenOf(tasks, task.id);
-  const dated = kids.filter((child) => child.startDate && child.endDate);
-  if (!dated.length) {
-    return {
-      startDate: task.startDate,
-      endDate: task.endDate,
-      durationDays: task.durationDays,
-    };
-  }
+function expandParentSchedule(tasks: Task[], parentId: string): Task[] {
+  const parent = tasks.find((task) => task.id === parentId);
+  if (!parent) return tasks;
 
-  const startDate = minIso(dated.map((child) => child.startDate!));
-  const endDate = maxIso(dated.map((child) => child.endDate!));
-  return {
-    startDate,
-    endDate,
-    durationDays: durationFromRange(startDate, endDate),
-  };
-}
-
-function rollupParentSchedule(tasks: Task[], parentId: string): Task[] {
-  const kids = childrenOf(tasks, parentId);
-  if (!kids.length) return tasks;
-
-  const dated = kids.filter((child) => child.startDate && child.endDate);
+  const dated = childrenOf(tasks, parentId)
+    .map(normalizeTaskSchedule)
+    .filter((child) => child.startDate && child.endDate);
   if (!dated.length) return tasks;
 
-  const startDate = minIso(dated.map((child) => child.startDate!));
-  const endDate = maxIso(dated.map((child) => child.endDate!));
-  const durationDays = durationFromRange(startDate, endDate);
+  const childStart = minIso(dated.map((child) => child.startDate!));
+  const childEnd = maxIso(dated.map((child) => child.endDate!));
 
-  return tasks.map((task) => {
-    if (task.id !== parentId) return task;
-    return { ...task, startDate, endDate, durationDays };
-  });
+  let startDate = parent.startDate;
+  let endDate = parent.endDate;
+
+  if (!startDate || !endDate) {
+    startDate = childStart;
+    endDate = childEnd;
+  } else {
+    startDate = childStart < startDate ? childStart : startDate;
+    endDate = childEnd > endDate ? childEnd : endDate;
+  }
+
+  const durationDays = durationFromRange(startDate, endDate);
+  if (
+    parent.startDate === startDate &&
+    parent.endDate === endDate &&
+    parent.durationDays === durationDays
+  ) {
+    return tasks;
+  }
+
+  return tasks.map((task) =>
+    task.id === parentId ? { ...task, startDate, endDate, durationDays } : task,
+  );
 }
 
 export function syncAllParentSchedules(tasks: Task[]): Task[] {
@@ -102,7 +110,7 @@ export function syncAllParentSchedules(tasks: Task[]): Task[] {
 
   let next = tasks;
   for (const parentId of parentIds) {
-    next = rollupParentSchedule(next, parentId);
+    next = expandParentSchedule(next, parentId);
   }
   return next;
 }

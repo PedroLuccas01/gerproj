@@ -21,7 +21,7 @@ import {
   widthPct,
 } from "@/lib/dates";
 import { isParentComplete, progressWithChildren, rawProgressWithChildren } from "@/lib/task-complete";
-import { normalizeTaskSchedule, parentScheduleOf } from "@/lib/task-schedule";
+import { normalizeTaskSchedule } from "@/lib/task-schedule";
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
 import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
@@ -457,7 +457,7 @@ function TaskRowView({
   const displayProgress = hasChildren ? progressWithChildren(task, allTasks) : task.progress;
   const exactParentProgress = hasChildren ? rawProgressWithChildren(task, allTasks) : null;
   const isDone = hasChildren ? isParentComplete(task, allTasks) : task.completed;
-  const schedule = hasChildren ? parentScheduleOf(task, allTasks) : normalizeTaskSchedule(task);
+  const schedule = normalizeTaskSchedule(task);
   const displayStartDate = schedule.startDate;
   const displayEndDate = schedule.endDate;
   const displayDurationDays = schedule.durationDays;
@@ -533,7 +533,7 @@ function TaskRowView({
           )}
         </div>
         <div className="flex h-[34px] w-16 items-center gap-0.5 px-1">
-          {readOnly || hasChildren ? (
+          {readOnly ? (
             <>
               <span className="px-1 text-xs text-muted">{displayDurationDays}</span>
               <span className="text-[11px] text-faint">d</span>
@@ -555,14 +555,14 @@ function TaskRowView({
           <DateCell
             value={displayStartDate}
             onChange={(startDate) => onUpdate({ startDate })}
-            readOnly={readOnly || hasChildren}
+            readOnly={readOnly}
           />
         </div>
         <div className="w-[108px] px-1 pt-0.5">
           <DateCell
             value={displayEndDate}
             onChange={(endDate) => onUpdate({ endDate })}
-            readOnly={readOnly || hasChildren}
+            readOnly={readOnly}
           />
         </div>
         <div className="relative flex h-[34px] w-10 items-center px-1">
