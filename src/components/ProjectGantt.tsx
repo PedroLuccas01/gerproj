@@ -20,6 +20,7 @@ import {
   todayIso,
   widthPct,
 } from "@/lib/dates";
+import { isParentComplete, progressWithChildren, rawProgressWithChildren } from "@/lib/task-complete";
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
 import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
@@ -29,6 +30,10 @@ import { ProgressSelect } from "./ui";
 const TABLE_W = 1060;
 const ROW = 48;
 const PHASE_H = 40;
+
+function timelineWidthForRange(totalDays: number) {
+  return Math.max(720, totalDays * 14);
+}
 
 export function ProjectGantt({
   project,
@@ -72,6 +77,14 @@ export function ProjectGantt({
 
   async function createTask(input: { phase: TaskPhase; parentId?: string | null; focusName?: boolean }) {
     if (input.focusName) pendingNameFocus.current = true;
+    if (input.focusName && input.parentId) {
+      const parent = tasks.find((task) => task.id === input.parentId);
+      const parentCollapsed = collapsed[input.parentId] ?? parent?.collapsed ?? false;
+      if (parentCollapsed) {
+        setCollapsed((prev) => ({ ...prev, [input.parentId!]: false }));
+        if (!readOnly && parent) updateTask(parent.id, { collapsed: false });
+      }
+    }
     try {
       const created = await addTask({
         projectId: project.id,
@@ -182,11 +195,12 @@ export function ProjectGantt({
   }, [range]);
 
   const todayLeft = positionPct(range.start, range.totalDays, todayIso());
+  const timelineWidth = useMemo(() => timelineWidthForRange(range.totalDays), [range.totalDays]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
-      <div className="overflow-x-auto">
-        <div className="min-w-[1440px]">
+      <div className="overflow-x-auto overscroll-x-contain">
+        <div style={{ minWidth: TABLE_W + timelineWidth }}>
           <div className="flex border-b border-line bg-surface-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
             <div className="flex shrink-0" style={{ width: TABLE_W }}>
               <Col className="w-12">#</Col>
@@ -198,7 +212,7 @@ export function ProjectGantt({
               <Col className="w-[170px]">Responsável</Col>
               {readOnly ? null : <Col className="w-10" />}
             </div>
-            <div className="relative h-10 flex-1">
+            <div className="relative h-10 shrink-0 overflow-hidden border-l border-line" style={{ width: timelineWidth }}>
               {months.map((m) => (
                 <div
                   key={m.key}
@@ -248,7 +262,10 @@ export function ProjectGantt({
                       </div>
                     )}
                   </div>
-                  <div className="relative flex-1 border-b border-line-subtle" style={{ height: PHASE_H }}>
+                  <div
+                    className="relative shrink-0 overflow-hidden border-b border-l border-line-subtle"
+                    style={{ width: timelineWidth, height: PHASE_H }}
+                  >
                     <TodayLine left={todayLeft} />
                   </div>
                 </div>
@@ -266,6 +283,7 @@ export function ProjectGantt({
                         allTasks={tasks}
                         range={range}
                         todayLeft={todayLeft}
+                        timelineWidth={timelineWidth}
                         depFor={depFor}
                         setDepFor={setDepFor}
                         readOnly={readOnly}
@@ -279,7 +297,7 @@ export function ProjectGantt({
                         onCopy={() => copyTask(root)}
                         onPaste={() => void pasteIntoPhase(phase)}
                         canPaste={Boolean(clipboard) && !pasting}
-                        onAddChild={() => void createTask({ phase, parentId: root.id })}
+                        onAddChild={() => void createTask({ phase, parentId: root.id, focusName: true })}
                         onToggleCollapse={() => {
                           if (readOnly) {
                             setCollapsed((prev) => ({
@@ -302,6 +320,7 @@ export function ProjectGantt({
                               allTasks={tasks}
                               range={range}
                               todayLeft={todayLeft}
+                              timelineWidth={timelineWidth}
                               depFor={depFor}
                               setDepFor={setDepFor}
                               readOnly={readOnly}
@@ -328,7 +347,10 @@ export function ProjectGantt({
                     <div className="border-b border-line-subtle px-4 py-2" style={{ width: TABLE_W }}>
                       Nenhuma tarefa nesta fase.
                     </div>
-                    <div className="relative flex-1 border-b border-line-subtle" />
+                    <div
+                      className="relative shrink-0 overflow-hidden border-b border-l border-line-subtle"
+                      style={{ width: timelineWidth }}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -374,6 +396,7 @@ function TaskRowView({
   allTasks,
   range,
   todayLeft,
+  timelineWidth,
   depFor,
   setDepFor,
   onProgress,
@@ -395,6 +418,7 @@ function TaskRowView({
   allTasks: Task[];
   range: { start: string; totalDays: number };
   todayLeft: number;
+  timelineWidth: number;
   depFor: string | null;
   setDepFor: (id: string | null) => void;
   onProgress: (progress: number) => void;
@@ -436,6 +460,9 @@ function TaskRowView({
       ? widthPct(range.totalDays, Math.max(1, diffDays(task.startDate, task.endDate)))
       : 0;
   const color = PHASE_COLOR[task.phase as TaskPhase];
+  const displayProgress = hasChildren ? progressWithChildren(task, allTasks) : task.progress;
+  const exactParentProgress = hasChildren ? rawProgressWithChildren(task, allTasks) : null;
+  const isDone = hasChildren ? isParentComplete(task, allTasks) : task.completed;
 
   return (
     <div className="flex border-b border-line-subtle hover:bg-hover">
@@ -462,17 +489,22 @@ function TaskRowView({
             <span className="mt-1.5 w-4 shrink-0" />
           )}
           <div className="mt-0.5 shrink-0">
-            <ProgressSelect
-              value={task.progress}
-              onChange={onProgress}
-              disabled={readOnly}
-            />
+            {hasChildren ? (
+              <span
+                className="inline-flex h-7 w-[58px] shrink-0 items-center justify-center rounded-md border border-line bg-surface px-1 text-[11px] font-medium tabular-nums text-muted"
+                title="Calculado pelas subtarefas"
+              >
+                {exactParentProgress}%
+              </span>
+            ) : (
+              <ProgressSelect value={displayProgress} onChange={onProgress} disabled={readOnly} />
+            )}
           </div>
           {readOnly ? (
             <span
               title={task.name}
               className={`min-w-0 flex-1 whitespace-pre-wrap break-words pt-1.5 text-sm leading-5 ${
-                task.completed ? "text-faint line-through" : "text-ink"
+                isDone ? "text-faint line-through" : "text-ink"
               }`}
             >
               {task.name}
@@ -489,7 +521,7 @@ function TaskRowView({
                 if (e.key === "Enter") e.preventDefault();
               }}
               className={`min-w-0 flex-1 resize-none overflow-hidden bg-transparent pt-1.5 text-sm leading-5 outline-none ${
-                task.completed ? "text-faint line-through" : "text-ink"
+                isDone ? "text-faint line-through" : "text-ink"
               }`}
             />
           )}
@@ -581,7 +613,10 @@ function TaskRowView({
           </div>
         )}
       </div>
-      <div className="relative min-h-[48px] flex-1 self-stretch">
+      <div
+        className="relative min-h-[48px] shrink-0 overflow-hidden self-stretch border-l border-line-subtle"
+        style={{ width: timelineWidth }}
+      >
         <TodayLine left={todayLeft} />
         {task.startDate && task.endDate ? (
           <div

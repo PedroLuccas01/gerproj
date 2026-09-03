@@ -13,7 +13,7 @@ import {
 import { useAuth } from "./auth";
 import { durationFromRange, endFromDuration, todayIso } from "./dates";
 import { statusAfterScheduleChange } from "./schedule-progress";
-import { applySetProgress, applyToggleComplete } from "./task-complete";
+import { applySetProgress, applyToggleComplete, syncAllParentProgress } from "./task-complete";
 import type {
   AppState,
   Client,
@@ -145,7 +145,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     const data = await api<AppState>("/api/state");
-    setState(data);
+    setState({
+      ...data,
+      tasks: syncAllParentProgress(data.tasks, todayIso()),
+    });
   }, []);
 
   useEffect(() => {
@@ -274,9 +277,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           window.clearTimeout(taskTimers.current[tempId]);
           delete taskTimers.current[tempId];
         }
-        setState((prev) => ({
-          ...prev,
-          tasks: prev.tasks.map((task) => {
+        const parentId = input.parentId ?? null;
+        const parentPatch = { current: null as Task | null };
+        setState((prev) => {
+          const mapped = prev.tasks.map((task) => {
             if (task.id !== tempId) return task;
             return {
               ...created,
@@ -291,8 +295,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               completed: task.completed,
               completedAt: task.completedAt,
             };
-          }),
-        }));
+          });
+          const synced = syncAllParentProgress(mapped, todayIso());
+          if (parentId) {
+            const before = prev.tasks.find((task) => task.id === parentId);
+            const after = synced.find((task) => task.id === parentId);
+            if (
+              before &&
+              after &&
+              (before.progress !== after.progress ||
+                before.completed !== after.completed ||
+                before.completedAt !== after.completedAt)
+            ) {
+              parentPatch.current = after;
+            }
+          }
+          return withSyncedProjectStatus({ ...prev, tasks: synced }, input.projectId);
+        });
+        if (parentPatch.current) {
+          const parent = parentPatch.current;
+          void api(`/api/tasks/${parent.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              progress: parent.progress,
+              completed: parent.completed,
+              completedAt: parent.completedAt,
+            }),
+          }).catch(() => undefined);
+        }
         if (pending) {
           window.clearTimeout(taskTimers.current[created.id]);
           taskTimers.current[created.id] = window.setTimeout(() => {
@@ -321,7 +351,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const existing = new Set(prev.tasks.map((task) => task.id));
         const incoming = created.tasks.filter((task) => !existing.has(task.id));
         return withSyncedProjectStatus(
-          { ...prev, tasks: [...prev.tasks, ...incoming] },
+          {
+            ...prev,
+            tasks: syncAllParentProgress([...prev.tasks, ...incoming], todayIso()),
+          },
           input.projectId,
         );
       });

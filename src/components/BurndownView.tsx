@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { PHASE_COLOR } from "@/lib/constants";
-import { diffDays, eachDay, formatBr, todayIso } from "@/lib/dates";
+import { addDaysIso, diffDays, eachDay, formatBr, todayIso } from "@/lib/dates";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
 import { ProgressSelect, Select, StatusBadge } from "./ui";
@@ -99,7 +99,7 @@ export function BurndownView() {
             <p className="mb-4 text-xs text-muted">
               Ideal vs. trabalho restante · {formatBr(project.startDate)} a {formatBr(project.endDate)}
             </p>
-            {chart && chart.points.length > 1 ? (
+            {chart && tasks.length > 0 && chart.points.length > 0 ? (
               <BurndownSvg chart={chart} />
             ) : (
               <p className="text-sm text-muted">Inclua tarefas no cronograma para gerar o gráfico.</p>
@@ -175,18 +175,26 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function buildBurndown(start: string, end: string, tasks: Task[]) {
-  const total = Math.max(tasks.length, 1);
+  if (!tasks.length) return { total: 0, points: [], start, end };
+
+  const total = tasks.length;
   const span = Math.max(1, diffDays(start, end));
   const today = todayIso();
-  const last = today < end ? today : end;
-  const days = eachDay(start, last);
-  const points = days.map((day, i) => {
+  const plotEnd = today < end ? today : end;
+
+  let days = eachDay(start, plotEnd);
+  if (days.length < 2) {
+    days = start < end ? [start, end] : [start, addDaysIso(start, 1)];
+  }
+
+  const points = days.map((day) => {
+    const dayIndex = Math.max(0, diffDays(start, day));
     const remaining = tasks.filter((t) => {
       if (!t.completed) return true;
       if (!t.completedAt) return false;
       return t.completedAt > day;
     }).length;
-    const ideal = Math.max(0, total * (1 - i / span));
+    const ideal = Math.max(0, total * (1 - dayIndex / span));
     return { day, remaining, ideal };
   });
   return { total, points, start, end };

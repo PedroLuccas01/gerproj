@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { isAllocatedToProject, stripBudget } from "@/lib/access";
 import { recordAudits, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError } from "@/lib/api-utils";
-import { mapState, mapTask } from "@/lib/mappers";
+import { todayIso } from "@/lib/dates";
+import { mapState, mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { scheduleProgress } from "@/lib/schedule-progress";
 import { requireAccess } from "@/lib/session";
+import { syncAllParentProgress } from "@/lib/task-complete";
 import { TASK_INCLUDE } from "@/lib/task-query";
 
 export async function GET() {
@@ -25,8 +27,34 @@ export async function GET() {
     ]);
 
     const mappedTasks = tasks.map(mapTask);
-    const tasksByProject = new Map<string, typeof mappedTasks>();
-    for (const task of mappedTasks) {
+    const syncedTasks = syncAllParentProgress(mappedTasks, todayIso());
+    const parentUpdates = syncedTasks.filter((task) => {
+      const before = mappedTasks.find((item) => item.id === task.id);
+      const hasKids = mappedTasks.some((item) => item.parentId === task.id);
+      if (!hasKids || !before) return false;
+      return (
+        before.progress !== task.progress ||
+        before.completed !== task.completed ||
+        before.completedAt !== task.completedAt
+      );
+    });
+    if (parentUpdates.length) {
+      await prisma.$transaction(
+        parentUpdates.map((task) =>
+          prisma.task.update({
+            where: { id: task.id },
+            data: {
+              progress: task.progress,
+              completed: task.completed,
+              completedAt: parseOptionalDate(task.completedAt),
+            },
+          }),
+        ),
+      );
+    }
+
+    const tasksByProject = new Map<string, typeof syncedTasks>();
+    for (const task of syncedTasks) {
       const list = tasksByProject.get(task.projectId) ?? [];
       list.push(task);
       tasksByProject.set(task.projectId, list);
@@ -76,10 +104,11 @@ export async function GET() {
       collaborators,
       clients,
       projects,
-      tasks: access.isManagement
-        ? tasks
-        : tasks.filter((task) => allocatedIds.has(task.projectId)),
+      tasks,
     });
+    state.tasks = access.isManagement
+      ? syncedTasks
+      : syncedTasks.filter((task) => allocatedIds.has(task.projectId));
 
     if (!access.isManagement) {
       state.projects = state.projects.map(stripBudget);

@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
 import { recordAudit, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
-import { mapTask } from "@/lib/mappers";
+import { todayIso } from "@/lib/dates";
+import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
+import { syncAllParentProgress } from "@/lib/task-complete";
+import { TASK_INCLUDE } from "@/lib/task-query";
 import type { TaskPhase } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -62,6 +65,32 @@ export async function POST(request: Request) {
         action: "auto",
       });
       if (entry) await recordAudit(entry);
+    }
+
+    if (parentId) {
+      const rows = await prisma.task.findMany({
+        where: { projectId: body.projectId },
+        include: TASK_INCLUDE,
+      });
+      const synced = syncAllParentProgress(rows.map(mapTask), todayIso());
+      const parent = synced.find((task) => task.id === parentId);
+      const before = rows.map(mapTask).find((task) => task.id === parentId);
+      if (
+        parent &&
+        before &&
+        (before.progress !== parent.progress ||
+          before.completed !== parent.completed ||
+          before.completedAt !== parent.completedAt)
+      ) {
+        await prisma.task.update({
+          where: { id: parentId },
+          data: {
+            progress: parent.progress,
+            completed: parent.completed,
+            completedAt: parseOptionalDate(parent.completedAt),
+          },
+        });
+      }
     }
 
     return NextResponse.json(mapTask(created));

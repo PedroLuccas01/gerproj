@@ -34,6 +34,51 @@ function withProgress(task: Task, progress: number, today: string): Task {
   };
 }
 
+function taskDepth(tasks: Task[], id: string): number {
+  const task = tasks.find((t) => t.id === id);
+  if (!task?.parentId) return 0;
+  return 1 + taskDepth(tasks, task.parentId);
+}
+
+export function rawProgressWithChildren(task: Task, tasks: Task[]): number {
+  const kids = childrenOf(tasks, task.id);
+  if (!kids.length) return taskProgressOf(task);
+  const total = kids.reduce((sum, child) => sum + Math.max(1, child.durationDays), 0);
+  const earned = kids.reduce(
+    (sum, child) => sum + Math.max(1, child.durationDays) * (taskProgressOf(child) / 100),
+    0,
+  );
+  return Math.round((earned / total) * 100);
+}
+
+export function progressWithChildren(task: Task, tasks: Task[]): TaskProgressStep {
+  const kids = childrenOf(tasks, task.id);
+  if (!kids.length) return taskProgressOf(task);
+  if (kids.every((child) => taskProgressOf(child) === 100)) return 100;
+  const raw = rawProgressWithChildren(task, tasks);
+  return TASK_PROGRESS.filter((step) => step < 100).reduce((best, step) =>
+    Math.abs(step - raw) < Math.abs(best - raw) ? step : best,
+  );
+}
+
+export function isParentComplete(task: Task, tasks: Task[]): boolean {
+  const kids = childrenOf(tasks, task.id);
+  return kids.length > 0 && kids.every((child) => taskProgressOf(child) === 100);
+}
+
+export function syncAllParentProgress(tasks: Task[], today: string): Task[] {
+  const parentIds = tasks
+    .filter((task) => childrenOf(tasks, task.id).length > 0)
+    .map((task) => task.id)
+    .sort((a, b) => taskDepth(tasks, b) - taskDepth(tasks, a));
+
+  let next = tasks;
+  for (const parentId of parentIds) {
+    next = rollupParent(next, parentId, today);
+  }
+  return next;
+}
+
 function rollupParent(tasks: Task[], parentId: string, today: string): Task[] {
   const kids = childrenOf(tasks, parentId);
   if (!kids.length) return tasks;
@@ -42,8 +87,8 @@ function rollupParent(tasks: Task[], parentId: string, today: string): Task[] {
     (sum, task) => sum + Math.max(1, task.durationDays) * (taskProgressOf(task) / 100),
     0,
   );
-  const progress = normalizeTaskProgress((earned / total) * 100);
   const completed = kids.every((task) => taskProgressOf(task) === 100);
+  const progress = completed ? 100 : Math.min(99, Math.round((earned / total) * 100));
   return tasks.map((task) => {
     if (task.id !== parentId) return task;
     return {
