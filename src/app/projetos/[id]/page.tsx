@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { AuditLogPanel } from "@/components/AuditLogPanel";
+import { ExportScheduleButtons } from "@/components/ExportScheduleButtons";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { Button, StatusBadge } from "@/components/ui";
 import { AREA_LABEL, BUDGET_AREAS, STATUS_BADGE, STATUS_LABEL } from "@/lib/constants";
@@ -63,6 +64,15 @@ export default function ProjetoDetalhePage() {
               Cronograma
             </Button>
           </Link>
+          <ExportScheduleButtons
+            compact
+            input={{
+              project,
+              tasks,
+              people: state.collaborators,
+              clientName: client?.name,
+            }}
+          />
           <Button variant="secondary" onClick={() => setEdit(true)}>
             <Pencil className="h-4 w-4" />
             Editar

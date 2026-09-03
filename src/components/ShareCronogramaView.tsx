@@ -3,6 +3,7 @@
 import { Eye, EyeOff, Lock, LogOut, User } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
+import { ExportScheduleButtons } from "@/components/ExportScheduleButtons";
 import { ProjectGantt } from "@/components/ProjectGantt";
 import { Button, StatusBadge } from "@/components/ui";
 import { STATUS_BADGE, STATUS_LABEL } from "@/lib/constants";
@@ -175,9 +176,19 @@ export function ShareCronogramaView({ token }: { token: string }) {
         </button>
       </header>
       <div className="space-y-4 p-4 sm:p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-navy">Cronograma</h1>
-          <StatusBadge label={STATUS_LABEL[project.status]} className={STATUS_BADGE[project.status]} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-navy">Cronograma</h1>
+            <StatusBadge label={STATUS_LABEL[project.status]} className={STATUS_BADGE[project.status]} />
+          </div>
+          <ExportScheduleButtons
+            compact
+            input={{
+              project,
+              tasks,
+              people,
+            }}
+          />
         </div>
         <ProjectGantt project={project} tasks={tasks} people={people} readOnly />
       </div>

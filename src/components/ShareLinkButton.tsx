@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, Copy, Link2, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, FileSpreadsheet, FileText, Link2, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { Modal } from "@/components/Modal";
+import { downloadScheduleExcel, downloadSchedulePdf } from "@/lib/export-schedule";
 import { formatBr } from "@/lib/dates";
 import { useFeedback } from "@/lib/feedback";
+import { useStore } from "@/lib/store";
 
 type ShareInfo = {
   token: string;
@@ -26,9 +28,22 @@ function shareUrl(token: string) {
 
 export function ShareLinkMenu({ projectId }: { projectId: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const { state } = useStore();
+  const { notify } = useFeedback();
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0 });
+  const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
+
+  const project = state.projects.find((item) => item.id === projectId);
+  const exportInput = project
+    ? {
+        project,
+        tasks: state.tasks.filter((task) => task.projectId === projectId),
+        people: state.collaborators,
+        clientName: state.clients.find((client) => client.id === project.clientId)?.name,
+      }
+    : null;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -60,7 +75,7 @@ export function ShareLinkMenu({ projectId }: { projectId: string }) {
       </button>
       {menuOpen ? (
         <div
-          className="fixed z-50 min-w-[168px] rounded-lg border border-line bg-surface py-1 shadow-lg"
+          className="fixed z-50 min-w-[188px] rounded-lg border border-line bg-surface py-1 shadow-lg"
           style={{ top: pos.top, right: pos.right }}
         >
           <button
@@ -73,6 +88,54 @@ export function ShareLinkMenu({ projectId }: { projectId: string }) {
           >
             <Link2 className="h-3.5 w-3.5 text-muted" />
             Gerar link
+          </button>
+          <button
+            type="button"
+            disabled={!exportInput || Boolean(exporting)}
+            onClick={async () => {
+              if (!exportInput) return;
+              setExporting("xlsx");
+              try {
+                await downloadScheduleExcel(exportInput);
+                setMenuOpen(false);
+              } catch (error) {
+                notify({
+                  type: "error",
+                  title: "Não foi possível gerar o Excel",
+                  description: error instanceof Error ? error.message : undefined,
+                });
+              } finally {
+                setExporting(null);
+              }
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ink hover:bg-hover disabled:opacity-50"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-muted" />
+            {exporting === "xlsx" ? "Gerando Excel..." : "Exportar Excel"}
+          </button>
+          <button
+            type="button"
+            disabled={!exportInput || Boolean(exporting)}
+            onClick={async () => {
+              if (!exportInput) return;
+              setExporting("pdf");
+              try {
+                await downloadSchedulePdf(exportInput);
+                setMenuOpen(false);
+              } catch (error) {
+                notify({
+                  type: "error",
+                  title: "Não foi possível gerar o PDF",
+                  description: error instanceof Error ? error.message : undefined,
+                });
+              } finally {
+                setExporting(null);
+              }
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ink hover:bg-hover disabled:opacity-50"
+          >
+            <FileText className="h-3.5 w-3.5 text-muted" />
+            {exporting === "pdf" ? "Gerando PDF..." : "Exportar PDF"}
           </button>
         </div>
       ) : null}

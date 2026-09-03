@@ -25,3 +25,14 @@ export function initials(name: string): string {
 export function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
+
+export function fileSlug(value: string) {
+  const slug = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .toLowerCase();
+  return slug || "cronograma";
+}
