@@ -70,3 +70,6 @@ export const BUDGET_AREAS = [
   { key: "hardware", label: "Hardware" },
   { key: "software", label: "Software" },
 ] as const;
+
+export const TASK_PROGRESS = [0, 25, 50, 75, 100] as const;
+export type TaskProgressStep = (typeof TASK_PROGRESS)[number];

@@ -1,15 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { PHASE_COLOR } from "@/lib/constants";
 import { diffDays, eachDay, formatBr, todayIso } from "@/lib/dates";
 import { useStore } from "@/lib/store";
 import type { Task } from "@/lib/types";
-import { Select, StatusBadge } from "./ui";
+import { ProgressSelect, Select, StatusBadge } from "./ui";
 
 export function BurndownView() {
-  const { state, toggleTask } = useStore();
+  const { state, setTaskProgress } = useStore();
   const defaultProjectId =
     state.projects.find((p) => p.status === "em_andamento")?.id ?? state.projects[0]?.id ?? "";
   const [projectId, setProjectId] = useState(defaultProjectId);
@@ -50,11 +49,7 @@ export function BurndownView() {
       <div>
         <h1 className="text-2xl font-semibold text-navy">Burndown</h1>
         <p className="mt-1 text-sm text-muted">
-          Consumo do trabalho ao longo do prazo deste projeto. A carga entre projetos fica em{" "}
-          <Link href="/carga" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
-            Carga
-          </Link>
-          .
+          Consumo do trabalho ao longo do prazo deste projeto.
         </p>
       </div>
 
@@ -133,11 +128,9 @@ export function BurndownView() {
                   <ul className="divide-y divide-line-subtle">
                     {list.map((task) => (
                       <li key={task.id} className="flex items-center gap-3 px-4 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={task.completed}
-                          onChange={() => toggleTask(task.id)}
-                          className="h-4 w-4 rounded border-line"
+                        <ProgressSelect
+                          value={task.progress}
+                          onChange={(progress) => void setTaskProgress(task.id, progress)}
                         />
                         <div className="min-w-0 flex-1">
                           <div

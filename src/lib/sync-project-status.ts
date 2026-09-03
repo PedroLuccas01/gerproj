@@ -14,7 +14,7 @@ export async function syncProjectStatusFromSchedule(
     }),
     prisma.task.findMany({
       where: { projectId },
-      select: { id: true, parentId: true, completed: true, durationDays: true },
+      select: { id: true, parentId: true, completed: true, durationDays: true, progress: true },
     }),
   ]);
   if (!project) return null;

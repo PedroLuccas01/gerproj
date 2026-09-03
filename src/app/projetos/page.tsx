@@ -12,6 +12,7 @@ import { STATUS_BADGE, STATUS_LABEL } from "@/lib/constants";
 import { formatBr } from "@/lib/dates";
 import { useFeedback } from "@/lib/feedback";
 import { formatBRL } from "@/lib/format";
+import { scheduleProgress } from "@/lib/schedule-progress";
 import { useStore } from "@/lib/store";
 import type { ProjectStatus } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -106,6 +107,7 @@ export default function ProjetosPage() {
           const leader = state.collaborators.find((c) => c.id === project.leaderId);
           const taskCount = state.tasks.filter((t) => t.projectId === project.id);
           const done = taskCount.filter((t) => t.completed).length;
+          const progress = scheduleProgress(taskCount);
           return (
             <article key={project.id} className="rounded-xl border border-line bg-surface p-5">
               <div className="flex items-start justify-between gap-3">
@@ -149,7 +151,7 @@ export default function ProjetosPage() {
                 <div>
                   <div className="font-medium text-faint">Tarefas</div>
                   <div className="mt-0.5 text-ink">
-                    {done}/{taskCount.length}
+                    {progress}% · {done}/{taskCount.length}
                   </div>
                 </div>
               </div>

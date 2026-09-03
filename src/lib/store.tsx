@@ -13,7 +13,7 @@ import {
 import { useAuth } from "./auth";
 import { durationFromRange, endFromDuration, todayIso } from "./dates";
 import { statusAfterScheduleChange } from "./schedule-progress";
-import { applyToggleComplete } from "./task-complete";
+import { applySetProgress, applyToggleComplete } from "./task-complete";
 import type {
   AppState,
   Client,
@@ -54,6 +54,7 @@ type StoreContextValue = {
   }) => Promise<Task>;
   updateTask: (id: string, patch: Partial<Task>) => void;
   toggleTask: (id: string) => Promise<void>;
+  setTaskProgress: (id: string, progress: number) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   addCollaborator: (draft: CollaboratorDraft) => Promise<Collaborator>;
   updateCollaborator: (id: string, patch: Partial<Collaborator> & { password?: string }) => Promise<void>;
@@ -233,6 +234,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           endDate: null,
           durationDays: 1,
           assigneeId: null,
+          progress: 0,
           completed: false,
           completedAt: null,
           dependencies: [],
@@ -272,6 +274,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               assigneeId: task.assigneeId,
               dependencies: task.dependencies,
               collapsed: task.collapsed,
+              progress: task.progress,
               completed: task.completed,
               completedAt: task.completedAt,
             };
@@ -311,6 +314,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [flushTask],
   );
 
+  const applyToggleResponse = useCallback(
+    (data: { tasks: Task[]; projectId?: string; projectStatus?: ProjectStatus }) => {
+      setState((prev) => {
+        const next: AppState = {
+          ...prev,
+          tasks: prev.tasks.map((t) => {
+            const server = data.tasks.find((n) => n.id === t.id);
+            if (!server) return t;
+            const newer = pendingTasks.current[t.id];
+            return newer ? applyTaskPatch(server, newer) : server;
+          }),
+        };
+        if (!data.projectId || !data.projectStatus) return next;
+        return {
+          ...next,
+          projects: next.projects.map((project) =>
+            project.id === data.projectId ? { ...project, status: data.projectStatus as ProjectStatus } : project,
+          ),
+        };
+      });
+    },
+    [],
+  );
+
   const toggleTask = useCallback(async (id: string) => {
     setState((prev) => {
       const target = prev.tasks.find((task) => task.id === id);
@@ -322,25 +349,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       `/api/tasks/${id}/toggle`,
       { method: "POST" },
     );
+    applyToggleResponse(data);
+  }, [applyToggleResponse]);
+
+  const setTaskProgress = useCallback(async (id: string, progress: number) => {
     setState((prev) => {
-      const next: AppState = {
-        ...prev,
-        tasks: prev.tasks.map((t) => {
-          const server = data.tasks.find((n) => n.id === t.id);
-          if (!server) return t;
-          const newer = pendingTasks.current[t.id];
-          return newer ? applyTaskPatch(server, newer) : server;
-        }),
-      };
-      if (!data.projectId || !data.projectStatus) return next;
-      return {
-        ...next,
-        projects: next.projects.map((project) =>
-          project.id === data.projectId ? { ...project, status: data.projectStatus as ProjectStatus } : project,
-        ),
-      };
+      const target = prev.tasks.find((task) => task.id === id);
+      const next = { ...prev, tasks: applySetProgress(prev.tasks, id, progress, todayIso()) };
+      return target ? withSyncedProjectStatus(next, target.projectId) : next;
     });
-  }, []);
+    if (isTempTaskId(id)) return;
+    const data = await api<{ tasks: Task[]; projectId?: string; projectStatus?: ProjectStatus }>(
+      `/api/tasks/${id}/toggle`,
+      { method: "POST", body: JSON.stringify({ progress }) },
+    );
+    applyToggleResponse(data);
+  }, [applyToggleResponse]);
 
   const deleteTask = useCallback(async (id: string) => {
     if (isTempTaskId(id)) {
@@ -457,6 +481,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       toggleTask,
+      setTaskProgress,
       deleteTask,
       addCollaborator,
       updateCollaborator,
@@ -474,6 +499,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       toggleTask,
+      setTaskProgress,
       deleteTask,
       addCollaborator,
       updateCollaborator,

@@ -23,8 +23,9 @@ import {
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
 import type { Project, Task, TaskPhase } from "@/lib/types";
+import { ProgressSelect } from "./ui";
 
-const TABLE_W = 760;
+const TABLE_W = 800;
 const ROW = 48;
 const PHASE_H = 40;
 
@@ -39,7 +40,7 @@ export function ProjectGantt({
   tasks?: Task[];
   people?: { id: string; name: string }[];
 }) {
-  const { state, addTask, updateTask, toggleTask, deleteTask } = useStore();
+  const { state, addTask, updateTask, setTaskProgress, deleteTask } = useStore();
   const { confirm, notify } = useFeedback();
   const [depFor, setDepFor] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -187,7 +188,7 @@ export function ProjectGantt({
                         depFor={depFor}
                         setDepFor={setDepFor}
                         readOnly={readOnly}
-                        onToggle={() => toggleTask(root.id)}
+                        onProgress={(progress) => void setTaskProgress(root.id, progress)}
                         onUpdate={(patch) => updateTask(root.id, patch)}
                         onDelete={() => removeTask(root)}
                         onAddChild={() => void createTask({ phase, parentId: root.id })}
@@ -216,7 +217,7 @@ export function ProjectGantt({
                               depFor={depFor}
                               setDepFor={setDepFor}
                               readOnly={readOnly}
-                              onToggle={() => toggleTask(child.id)}
+                              onProgress={(progress) => void setTaskProgress(child.id, progress)}
                               onUpdate={(patch) => updateTask(child.id, patch)}
                               onDelete={() => removeTask(child)}
                               onAddChild={() => undefined}
@@ -280,7 +281,7 @@ function TaskRowView({
   todayLeft,
   depFor,
   setDepFor,
-  onToggle,
+  onProgress,
   onUpdate,
   onDelete,
   onAddChild,
@@ -296,7 +297,7 @@ function TaskRowView({
   todayLeft: number;
   depFor: string | null;
   setDepFor: (id: string | null) => void;
-  onToggle: () => void;
+  onProgress: (progress: number) => void;
   onUpdate: (patch: Partial<Task>) => void;
   onDelete: () => void;
   onAddChild: () => void;
@@ -335,12 +336,10 @@ function TaskRowView({
           ) : (
             <span className="w-4" />
           )}
-          <input
-            type="checkbox"
-            checked={task.completed}
-            onChange={onToggle}
+          <ProgressSelect
+            value={task.progress}
+            onChange={onProgress}
             disabled={readOnly}
-            className="h-4 w-4 rounded border-line text-blue-600 disabled:opacity-70 dark:text-blue-400"
           />
           {readOnly ? (
             <span
@@ -463,13 +462,24 @@ function TaskRowView({
         <TodayLine left={todayLeft} />
         {task.startDate && task.endDate ? (
           <div
-            className={`absolute top-3 h-6 rounded-md ${task.completed ? "opacity-50" : ""}`}
+            className="absolute top-3 h-6 overflow-hidden rounded-md"
             style={{
               left: `${left}%`,
               width: `${Math.max(width, 0.8)}%`,
               background: color,
+              opacity: 0.28,
             }}
-            title={`${task.name} · ${formatBr(task.startDate)} – ${formatBr(task.endDate)}`}
+            title={`${task.name} · ${formatBr(task.startDate)} – ${formatBr(task.endDate)} · ${task.progress}%`}
+          />
+        ) : null}
+        {task.startDate && task.endDate && task.progress > 0 ? (
+          <div
+            className="absolute top-3 h-6 rounded-md"
+            style={{
+              left: `${left}%`,
+              width: `${Math.max(width * (task.progress / 100), 0.4)}%`,
+              background: color,
+            }}
           />
         ) : null}
       </div>

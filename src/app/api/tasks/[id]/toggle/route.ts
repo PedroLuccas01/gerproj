@@ -6,25 +6,34 @@ import { todayIso } from "@/lib/dates";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
-import { applyToggleComplete } from "@/lib/task-complete";
+import { applySetProgress, applyToggleComplete } from "@/lib/task-complete";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(_request: Request, { params }: Params) {
+export async function POST(request: Request, { params }: Params) {
   try {
     const access = await requireAccess();
     requireManagement(access);
     const { id } = await params;
+    const body = (await request.json().catch(() => ({}))) as { progress?: number };
     const existing = await prisma.task.findUnique({ where: { id } });
     if (!existing) return jsonError("Tarefa não encontrada.", 404);
 
     const rows = await prisma.task.findMany({ where: { projectId: existing.projectId } });
     const current = rows.map(mapTask);
-    const next = applyToggleComplete(current, id, todayIso());
+    const next =
+      typeof body.progress === "number"
+        ? applySetProgress(current, id, body.progress, todayIso())
+        : applyToggleComplete(current, id, todayIso());
     const changed = next.filter((task) => {
       const before = current.find((t) => t.id === task.id);
-      return !before || before.completed !== task.completed || before.completedAt !== task.completedAt;
+      return (
+        !before ||
+        before.completed !== task.completed ||
+        before.completedAt !== task.completedAt ||
+        before.progress !== task.progress
+      );
     });
 
     if (changed.length) {
@@ -33,6 +42,7 @@ export async function POST(_request: Request, { params }: Params) {
           prisma.task.update({
             where: { id: task.id },
             data: {
+              progress: task.progress,
               completed: task.completed,
               completedAt: parseOptionalDate(task.completedAt),
             },

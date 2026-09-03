@@ -77,6 +77,7 @@ export function mapTask(row: DbTask): Task {
     endDate: isoDate(row.endDate),
     durationDays: row.durationDays,
     assigneeId: row.assigneeId,
+    progress: row.completed ? 100 : row.progress,
     completed: row.completed,
     completedAt: isoDate(row.completedAt),
     dependencies: row.dependencies,

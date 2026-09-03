@@ -1,6 +1,8 @@
 "use client";
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { TASK_PROGRESS } from "@/lib/constants";
+import { normalizeTaskProgress } from "@/lib/task-complete";
 
 export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -94,5 +96,34 @@ export function StatusBadge({
     >
       {label}
     </span>
+  );
+}
+
+export function ProgressSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange?: (value: number) => void;
+  disabled?: boolean;
+}) {
+  const current = normalizeTaskProgress(value);
+  if (disabled) {
+    return <span className="w-[52px] shrink-0 text-center text-[11px] tabular-nums text-muted">{current}%</span>;
+  }
+  return (
+    <select
+      value={current}
+      onChange={(event) => onChange?.(Number(event.target.value))}
+      className="h-7 w-[58px] shrink-0 rounded-md border border-line bg-surface px-1 text-[11px] font-medium tabular-nums text-ink outline-none focus:border-brand"
+      title="Avanço da atividade"
+    >
+      {TASK_PROGRESS.map((step) => (
+        <option key={step} value={step}>
+          {step}%
+        </option>
+      ))}
+    </select>
   );
 }

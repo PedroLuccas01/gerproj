@@ -327,8 +327,8 @@ export function DeliveryDashboard() {
           </div>
         </div>
         <p className="px-5 py-3 text-[11px] text-faint">
-          A barra mostra o percentual de atividades concluídas no cronograma. A linha laranja indica o
-          progresso esperado para hoje.
+          A barra soma o avanço das atividades (0, 25, 50, 75 ou 100%), ponderado pela duração. A linha
+          laranja indica o progresso esperado para hoje.
         </p>
       </section>
     </div>

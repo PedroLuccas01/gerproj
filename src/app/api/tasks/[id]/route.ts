@@ -30,6 +30,7 @@ export async function PATCH(request: Request, { params }: Params) {
         ...(patch.endDate !== undefined ? { endDate: parseOptionalDate(patch.endDate) } : {}),
         ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
         ...(patch.assigneeId !== undefined ? { assigneeId: patch.assigneeId } : {}),
+        ...(patch.progress !== undefined ? { progress: patch.progress, completed: patch.progress === 100 } : {}),
         ...(patch.completed !== undefined ? { completed: patch.completed } : {}),
         ...(patch.completedAt !== undefined
           ? { completedAt: parseOptionalDate(patch.completedAt) }
@@ -39,7 +40,7 @@ export async function PATCH(request: Request, { params }: Params) {
         ...(patch.collapsed !== undefined ? { collapsed: patch.collapsed } : {}),
       },
     });
-    if (patch.completed !== undefined) {
+    if (patch.completed !== undefined || patch.progress !== undefined) {
       await syncProjectStatusFromSchedule(existing.projectId, toAuditActor(access));
     }
     return NextResponse.json(mapTask(updated));

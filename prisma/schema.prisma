@@ -157,6 +157,7 @@ model Task {
   assignee     Collaborator? @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
   completed    Boolean   @default(false)
   completedAt  DateTime? @db.Date
+  progress     Int       @default(0)
   dependencies String[]  @default([])
   order        Int       @default(0)
   collapsed    Boolean   @default(false)

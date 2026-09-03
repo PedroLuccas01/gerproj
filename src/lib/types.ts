@@ -73,6 +73,7 @@ export interface Task {
   endDate: string | null;
   durationDays: number;
   assigneeId: string | null;
+  progress: number;
   completed: boolean;
   completedAt: string | null;
   dependencies: string[];

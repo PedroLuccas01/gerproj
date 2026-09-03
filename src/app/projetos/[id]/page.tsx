@@ -11,6 +11,7 @@ import { AREA_LABEL, BUDGET_AREAS, STATUS_BADGE, STATUS_LABEL } from "@/lib/cons
 import { formatBr } from "@/lib/dates";
 import { useFeedback } from "@/lib/feedback";
 import { formatBRL } from "@/lib/format";
+import { scheduleProgress } from "@/lib/schedule-progress";
 import { useStore } from "@/lib/store";
 
 export default function ProjetoDetalhePage() {
@@ -38,6 +39,7 @@ export default function ProjetoDetalhePage() {
   const team = state.collaborators.filter((c) => project.teamIds.includes(c.id));
   const tasks = state.tasks.filter((t) => t.projectId === project.id);
   const done = tasks.filter((t) => t.completed).length;
+  const progress = scheduleProgress(tasks);
 
   return (
     <div className="space-y-6 p-6">
@@ -102,7 +104,7 @@ export default function ProjetoDetalhePage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Info title="Cliente" value={client?.name ?? "Nenhum cliente"} />
         <Info title="Líder" value={leader?.name ?? "Nenhum líder"} />
-        <Info title="Tarefas" value={`${done} de ${tasks.length} concluídas`} />
+        <Info title="Tarefas" value={`${progress}% · ${done} de ${tasks.length} concluídas`} />
         <Info title="Orçamento previsto" value={`R$ ${formatBRL(project.budget)}`} />
         <Info
           title="Equipe"
