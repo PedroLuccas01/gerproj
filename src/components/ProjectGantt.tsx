@@ -21,7 +21,7 @@ import {
   widthPct,
 } from "@/lib/dates";
 import { isParentComplete, progressWithChildren, rawProgressWithChildren } from "@/lib/task-complete";
-import { parentScheduleOf } from "@/lib/task-schedule";
+import { normalizeTaskSchedule, parentScheduleOf } from "@/lib/task-schedule";
 import { useStore } from "@/lib/store";
 import { useFeedback } from "@/lib/feedback";
 import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
@@ -457,7 +457,7 @@ function TaskRowView({
   const displayProgress = hasChildren ? progressWithChildren(task, allTasks) : task.progress;
   const exactParentProgress = hasChildren ? rawProgressWithChildren(task, allTasks) : null;
   const isDone = hasChildren ? isParentComplete(task, allTasks) : task.completed;
-  const schedule = hasChildren ? parentScheduleOf(task, allTasks) : task;
+  const schedule = hasChildren ? parentScheduleOf(task, allTasks) : normalizeTaskSchedule(task);
   const displayStartDate = schedule.startDate;
   const displayEndDate = schedule.endDate;
   const displayDurationDays = schedule.durationDays;

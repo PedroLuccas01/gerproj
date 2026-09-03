@@ -19,7 +19,7 @@ import {
   initialSubtaskSchedule,
   parentScheduleChanged,
   parentSchedulePatch,
-  syncAllParentSchedules,
+  syncAllTaskSchedules,
 } from "./task-schedule";
 import type {
   AppState,
@@ -120,7 +120,7 @@ function applyTaskPatch(task: Task, patch: Partial<Task>): Task {
 }
 
 function syncAllParents(tasks: Task[], today: string): Task[] {
-  return syncAllParentProgress(syncAllParentSchedules(tasks), today);
+  return syncAllParentProgress(syncAllTaskSchedules(tasks), today);
 }
 
 function queueParentRollups(

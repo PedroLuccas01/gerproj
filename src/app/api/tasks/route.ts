@@ -7,11 +7,7 @@ import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
 import { syncAllParentProgress } from "@/lib/task-complete";
-import {
-  inheritedSubtaskSchedule,
-  parentScheduleChanged,
-  syncAllParentSchedules,
-} from "@/lib/task-schedule";
+import { inheritedSubtaskSchedule, parentScheduleChanged, syncAllTaskSchedules } from "@/lib/task-schedule";
 import { TASK_INCLUDE } from "@/lib/task-query";
 import type { TaskPhase } from "@/lib/types";
 
@@ -89,7 +85,7 @@ export async function POST(request: Request) {
         where: { projectId: body.projectId },
         include: TASK_INCLUDE,
       });
-      const synced = syncAllParentProgress(syncAllParentSchedules(rows.map(mapTask)), todayIso());
+      const synced = syncAllParentProgress(syncAllTaskSchedules(rows.map(mapTask)), todayIso());
       const parent = synced.find((task) => task.id === parentId);
       const before = rows.map(mapTask).find((task) => task.id === parentId);
       if (parent && before) {

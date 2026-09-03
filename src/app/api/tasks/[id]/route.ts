@@ -10,7 +10,7 @@ import { replaceTaskAssignees } from "@/lib/task-assignees";
 import { replaceTaskDependencies } from "@/lib/task-deps";
 import { syncAllParentProgress } from "@/lib/task-complete";
 import { TASK_INCLUDE } from "@/lib/task-query";
-import { applyTaskSchedulePatch, parentScheduleChanged, syncAllParentSchedules } from "@/lib/task-schedule";
+import { applyTaskSchedulePatch, parentScheduleChanged, syncAllTaskSchedules } from "@/lib/task-schedule";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 import type { Task } from "@/lib/types";
 
@@ -65,11 +65,10 @@ export async function PATCH(request: Request, { params }: Params) {
       where: { projectId: existing.projectId },
       include: TASK_INCLUDE,
     });
-    const synced = syncAllParentProgress(syncAllParentSchedules(rows.map(mapTask)), todayIso());
-    const parentUpdates = synced.filter((task) => {
+    const synced = syncAllParentProgress(syncAllTaskSchedules(rows.map(mapTask)), todayIso());
+    const taskUpdates = synced.filter((task) => {
       const before = rows.map(mapTask).find((item) => item.id === task.id);
-      const hasKids = rows.some((item) => item.parentId === task.id);
-      if (!hasKids || !before) return false;
+      if (!before) return false;
       return (
         before.progress !== task.progress ||
         before.completed !== task.completed ||
@@ -77,9 +76,9 @@ export async function PATCH(request: Request, { params }: Params) {
         parentScheduleChanged(before, task)
       );
     });
-    if (parentUpdates.length) {
+    if (taskUpdates.length) {
       await prisma.$transaction(
-        parentUpdates.map((task) =>
+        taskUpdates.map((task) =>
           prisma.task.update({
             where: { id: task.id },
             data: {

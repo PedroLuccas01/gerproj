@@ -8,10 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { scheduleProgress } from "@/lib/schedule-progress";
 import { requireAccess } from "@/lib/session";
 import { syncAllParentProgress } from "@/lib/task-complete";
-import {
-  parentScheduleChanged,
-  syncAllParentSchedules,
-} from "@/lib/task-schedule";
+import { syncAllTaskSchedules, taskScheduleChanged } from "@/lib/task-schedule";
 import { TASK_INCLUDE } from "@/lib/task-query";
 
 export async function GET() {
@@ -31,21 +28,20 @@ export async function GET() {
     ]);
 
     const mappedTasks = tasks.map(mapTask);
-    const syncedTasks = syncAllParentProgress(syncAllParentSchedules(mappedTasks), todayIso());
-    const parentUpdates = syncedTasks.filter((task) => {
+    const syncedTasks = syncAllParentProgress(syncAllTaskSchedules(mappedTasks), todayIso());
+    const taskUpdates = syncedTasks.filter((task) => {
       const before = mappedTasks.find((item) => item.id === task.id);
-      const hasKids = mappedTasks.some((item) => item.parentId === task.id);
-      if (!hasKids || !before) return false;
+      if (!before) return false;
       return (
         before.progress !== task.progress ||
         before.completed !== task.completed ||
         before.completedAt !== task.completedAt ||
-        parentScheduleChanged(before, task)
+        taskScheduleChanged(before, task)
       );
     });
-    if (parentUpdates.length) {
+    if (taskUpdates.length) {
       await prisma.$transaction(
-        parentUpdates.map((task) =>
+        taskUpdates.map((task) =>
           prisma.task.update({
             where: { id: task.id },
             data: {

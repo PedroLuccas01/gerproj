@@ -18,13 +18,40 @@ export function applyTaskSchedulePatch(task: Task, patch: Partial<Task>): Task {
 
   if (!scheduleTouched) return next;
 
-  if (next.startDate && next.endDate) {
+  const endChanged = patch.endDate !== undefined;
+  const durationChanged = patch.durationDays !== undefined;
+  const startChanged = patch.startDate !== undefined;
+
+  if (durationChanged && next.startDate) {
+    next.endDate = endFromDuration(next.startDate, next.durationDays);
+  } else if (startChanged && next.startDate && next.durationDays && !endChanged) {
+    next.endDate = endFromDuration(next.startDate, next.durationDays);
+  } else if (next.startDate && next.endDate) {
     next.durationDays = durationFromRange(next.startDate, next.endDate);
   } else if (next.startDate && next.durationDays) {
     next.endDate = endFromDuration(next.startDate, next.durationDays);
   }
 
   return next;
+}
+
+export function normalizeTaskSchedule(task: Task): Task {
+  if (!task.startDate || task.durationDays < 1) return task;
+  const endDate = endFromDuration(task.startDate, task.durationDays);
+  if (task.endDate === endDate) return task;
+  return { ...task, endDate };
+}
+
+export function syncAllTaskSchedules(tasks: Task[]): Task[] {
+  return syncAllParentSchedules(tasks.map(normalizeTaskSchedule));
+}
+
+export function taskScheduleChanged(before: Task, after: Task): boolean {
+  return (
+    before.startDate !== after.startDate ||
+    before.endDate !== after.endDate ||
+    before.durationDays !== after.durationDays
+  );
 }
 
 export function parentScheduleOf(
@@ -96,11 +123,7 @@ export function initialSubtaskSchedule(parent: Task | undefined): Pick<Task, "st
 }
 
 export function parentScheduleChanged(before: Task, after: Task): boolean {
-  return (
-    before.startDate !== after.startDate ||
-    before.endDate !== after.endDate ||
-    before.durationDays !== after.durationDays
-  );
+  return taskScheduleChanged(before, after);
 }
 
 export function parentSchedulePatch(task: Task): Partial<Task> {
