@@ -1,4 +1,5 @@
 import type { Client as DbClient, Collaborator as DbCollaborator, Project as DbProject, Task as DbTask } from "@prisma/client";
+import { dependencyIds, type TaskWithDeps } from "./task-deps";
 import type { AppState, Client, Collaborator, Project, Task } from "./types";
 
 function isoDate(value: Date | null): string | null {
@@ -65,7 +66,7 @@ export function mapProject(
   };
 }
 
-export function mapTask(row: DbTask): Task {
+export function mapTask(row: DbTask & TaskWithDeps): Task {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -80,7 +81,7 @@ export function mapTask(row: DbTask): Task {
     progress: row.completed ? 100 : row.progress,
     completed: row.completed,
     completedAt: isoDate(row.completedAt),
-    dependencies: row.dependencies,
+    dependencies: dependencyIds(row),
     order: row.order,
     collapsed: row.collapsed,
   };
@@ -90,7 +91,7 @@ export function mapState(input: {
   collaborators: DbCollaborator[];
   clients: DbClient[];
   projects: Array<DbProject & { team: { collaboratorId: string }[] }>;
-  tasks: DbTask[];
+  tasks: Array<DbTask & TaskWithDeps>;
 }): AppState {
   return {
     collaborators: input.collaborators.map(mapCollaborator),

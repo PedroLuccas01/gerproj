@@ -2,7 +2,8 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { findShareByToken, isShareActive } from "@/lib/project-share";
-import { withDbRetry } from "@/lib/prisma";
+import { withDbRetry, prisma } from "@/lib/prisma";
+import { requestClientIp, requestUserAgent } from "@/lib/request-meta";
 import { createShareSession } from "@/lib/share-session";
 
 export async function POST(request: Request) {
@@ -30,6 +31,17 @@ export async function POST(request: Request) {
       projectId: share.projectId,
       expiresAt: share.expiresAt,
     });
+    try {
+      await prisma.projectShareAccess.create({
+        data: {
+          shareId: share.id,
+          ip: requestClientIp(request),
+          userAgent: requestUserAgent(request),
+        },
+      });
+    } catch (error) {
+      console.error(error);
+    }
     return NextResponse.json({ ok: true, projectName: share.project.name });
   } catch (error) {
     return handleApiError(error);

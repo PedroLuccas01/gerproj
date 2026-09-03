@@ -6,6 +6,7 @@ import { mapState, mapTask } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { scheduleProgress } from "@/lib/schedule-progress";
 import { requireAccess } from "@/lib/session";
+import { TASK_DEP_INCLUDE } from "@/lib/task-deps";
 
 export async function GET() {
   try {
@@ -17,7 +18,10 @@ export async function GET() {
         include: { team: true },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.task.findMany({ orderBy: [{ projectId: "asc" }, { seq: "asc" }] }),
+      prisma.task.findMany({
+        include: TASK_DEP_INCLUDE,
+        orderBy: [{ projectId: "asc" }, { seq: "asc" }],
+      }),
     ]);
 
     const mappedTasks = tasks.map(mapTask);

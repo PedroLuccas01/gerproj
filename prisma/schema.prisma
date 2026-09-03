@@ -107,8 +107,20 @@ model ProjectShare {
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
   revokedAt    DateTime?
+  accesses     ProjectShareAccess[]
 
   @@index([projectId])
+}
+
+model ProjectShareAccess {
+  id        String       @id @default(cuid())
+  shareId   String
+  share     ProjectShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  ip        String       @default("")
+  userAgent String       @default("")
+
+  @@index([shareId, createdAt])
 }
 
 model ProjectTeam {
@@ -158,7 +170,18 @@ model Task {
   completed    Boolean   @default(false)
   completedAt  DateTime? @db.Date
   progress     Int       @default(0)
-  dependencies String[]  @default([])
+  dependsOn    TaskDependency[] @relation("TaskDepends")
+  dependedBy   TaskDependency[] @relation("TaskPredecessor")
   order        Int       @default(0)
   collapsed    Boolean   @default(false)
+}
+
+model TaskDependency {
+  taskId      String
+  dependsOnId String
+  task        Task   @relation("TaskDepends", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn   Task   @relation("TaskPredecessor", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, dependsOnId])
+  @@index([dependsOnId])
 }

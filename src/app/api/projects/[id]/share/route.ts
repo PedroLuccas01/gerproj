@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonError } from "@/lib/api-utils";
 import {
   findActiveShareForProject,
   generateShareLogin,
@@ -67,6 +67,62 @@ export async function POST(_request: Request, { params }: Params) {
       share: toSharePublic(share),
       password,
     });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function PATCH(request: Request, { params }: Params) {
+  try {
+    const access = await requireAccess();
+    requireManagement(access);
+    const { id } = await params;
+    const body = (await request.json()) as { action?: "password" | "expire" | "reactivate" };
+    const share = await findActiveShareForProject(id);
+    if (!share) return jsonError("Não há um link ativo neste projeto.", 404);
+
+    if (body.action === "password") {
+      const password = generateSharePassword();
+      const updated = await prisma.projectShare.update({
+        where: { id: share.id },
+        data: { passwordHash: await bcrypt.hash(password, 10) },
+        include: {
+          project: true,
+          accesses: { orderBy: { createdAt: "desc" }, take: 40 },
+        },
+      });
+      return NextResponse.json({ share: toSharePublic(updated), password });
+    }
+
+    if (body.action === "expire") {
+      const updated = await prisma.projectShare.update({
+        where: { id: share.id },
+        data: { expiresAt: new Date() },
+        include: {
+          project: true,
+          accesses: { orderBy: { createdAt: "desc" }, take: 40 },
+        },
+      });
+      return NextResponse.json({ share: toSharePublic(updated) });
+    }
+
+    if (body.action === "reactivate") {
+      const expiresAt = shareExpiresAtFromEndDate(share.project.endDate);
+      if (expiresAt.getTime() <= Date.now()) {
+        return jsonError("O prazo do projeto já encerrou. Ajuste a data de término para reativar.");
+      }
+      const updated = await prisma.projectShare.update({
+        where: { id: share.id },
+        data: { expiresAt },
+        include: {
+          project: true,
+          accesses: { orderBy: { createdAt: "desc" }, take: 40 },
+        },
+      });
+      return NextResponse.json({ share: toSharePublic(updated) });
+    }
+
+    return jsonError("Ação inválida.");
   } catch (error) {
     return handleApiError(error);
   }

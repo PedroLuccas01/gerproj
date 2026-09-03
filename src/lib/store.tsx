@@ -33,6 +33,15 @@ function isTempTaskId(id: string) {
   return id.startsWith(TEMP_TASK_PREFIX);
 }
 
+function withoutRemovedTasks(tasks: Task[], removed: Set<string>) {
+  return tasks
+    .filter((task) => !removed.has(task.id))
+    .map((task) => ({
+      ...task,
+      dependencies: task.dependencies.filter((dep) => !removed.has(dep)),
+    }));
+}
+
 const emptyState: AppState = {
   collaborators: [],
   clients: [],
@@ -371,9 +380,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelledTempAdds.current.add(id);
       setState((prev) => {
         const projectId = prev.tasks.find((task) => task.id === id)?.projectId;
+        const removed = new Set([
+          id,
+          ...prev.tasks.filter((task) => task.parentId === id).map((task) => task.id),
+        ]);
         const next = {
           ...prev,
-          tasks: prev.tasks.filter((task) => task.id !== id && task.parentId !== id),
+          tasks: withoutRemovedTasks(prev.tasks, removed),
         };
         return projectId ? withSyncedProjectStatus(next, projectId) : next;
       });
@@ -384,9 +397,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       snapshot = prev;
       const projectId = prev.tasks.find((task) => task.id === id)?.projectId;
+      const removed = new Set([
+        id,
+        ...prev.tasks.filter((task) => task.parentId === id).map((task) => task.id),
+      ]);
       const next = {
         ...prev,
-        tasks: prev.tasks.filter((task) => task.id !== id && task.parentId !== id),
+        tasks: withoutRemovedTasks(prev.tasks, removed),
       };
       return projectId ? withSyncedProjectStatus(next, projectId) : next;
     });

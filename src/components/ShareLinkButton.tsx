@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, FileSpreadsheet, FileText, Link2, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, FileSpreadsheet, FileText, KeyRound, Link2, MoreVertical, RefreshCw, TimerOff, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { Modal } from "@/components/Modal";
@@ -9,11 +9,19 @@ import { formatBr } from "@/lib/dates";
 import { useFeedback } from "@/lib/feedback";
 import { useStore } from "@/lib/store";
 
+type ShareAccess = {
+  id: string;
+  at: string;
+  ip: string;
+  from: string;
+};
+
 type ShareInfo = {
   token: string;
   login: string;
   validUntil: string;
   expired: boolean;
+  accesses?: ShareAccess[];
 };
 
 type ShareResponse = {
@@ -206,7 +214,33 @@ export function ShareLinkDialog({
     }
   }
 
-  async function revoke() {
+  async function patchShare(action: "password" | "expire" | "reactivate") {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/share`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = (await res.json()) as ShareResponse;
+      if (!res.ok) {
+        notify({ type: "error", title: data.error || "Não foi possível atualizar o acesso." });
+        return;
+      }
+      setShare(data.share);
+      if (action === "password") {
+        setPassword(data.password ?? null);
+        notify({ type: "success", title: "Nova senha gerada. O link e o login continuam os mesmos." });
+      } else if (action === "expire") {
+        setPassword(null);
+        notify({ type: "success", title: "Acesso encerrado. O link não muda." });
+      } else {
+        notify({ type: "success", title: "Acesso reativado até o fim do projeto." });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
     const ok = await confirm({
       title: "Revogar acesso",
       description: "O cliente não poderá mais abrir o cronograma com este link.",
@@ -242,7 +276,7 @@ export function ShareLinkDialog({
       open={open}
       onClose={onClose}
       title="Link do cronograma"
-      subtitle="O cliente acessa só o Gantt deste projeto, com login e senha. O acesso vale até o fim do projeto e pode ser revogado a qualquer momento."
+      subtitle="O cliente acessa só o Gantt deste projeto. Você pode encerrar o acesso ou trocar a senha sem gerar um link novo."
       footer={
         share ? (
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
@@ -271,7 +305,7 @@ export function ShareLinkDialog({
         <div className="space-y-4">
           {share.expired ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
-              Este acesso expirou no fim do projeto. Gere um novo link ou ajuste a data de término.
+              Este acesso está encerrado. Reative até o fim do projeto ou gere um link novo.
             </p>
           ) : null}
           <CopyField
@@ -297,19 +331,83 @@ export function ShareLinkDialog({
             <div>
               <div className="mb-1.5 text-[13px] font-semibold text-navy">Senha</div>
               <p className="text-sm text-muted">
-                A senha só aparece na hora de gerar o link. Se o cliente perdeu, gere um novo acesso.
+                A senha só aparece ao gerar o link ou ao renovar. O endereço e o login não mudam.
               </p>
             </div>
           )}
           <p className="text-sm text-muted">
             Válido até <span className="font-medium text-ink">{formatBr(share.validUntil)}</span>
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              disabled={loading}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Renovar senha",
+                  description: "A senha atual deixa de valer. O link e o login continuam os mesmos.",
+                  confirmLabel: "Gerar nova senha",
+                  tone: "warning",
+                });
+                if (ok) await patchShare("password");
+              }}
+            >
+              <KeyRound className="h-4 w-4" />
+              Renovar senha
+            </Button>
+            {share.expired ? (
+              <Button variant="secondary" disabled={loading} onClick={() => void patchShare("reactivate")}>
+                Reativar acesso
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                disabled={loading}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Encerrar acesso agora",
+                    description:
+                      "O cliente não entra mais neste link. O endereço e o login permanecem; você pode reativar depois.",
+                    confirmLabel: "Encerrar",
+                    tone: "warning",
+                  });
+                  if (ok) await patchShare("expire");
+                }}
+              >
+                <TimerOff className="h-4 w-4" />
+                Encerrar agora
+              </Button>
+            )}
+          </div>
           {message ? (
             <Button variant="secondary" className="w-full" onClick={() => void copy("message", message)}>
               {copied === "message" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               Copiar dados para enviar
             </Button>
           ) : null}
+          <div>
+            <div className="mb-1.5 text-[13px] font-semibold text-navy">Acessos do cliente</div>
+            {share.accesses?.length ? (
+              <ul className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-line-subtle p-3">
+                {share.accesses.map((item) => (
+                  <li key={item.id} className="text-xs text-ink">
+                    <div className="font-medium">
+                      {new Date(item.at).toLocaleString("pt-BR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: "America/Sao_Paulo",
+                      })}
+                    </div>
+                    <div className="text-muted">
+                      {item.from} · {item.ip}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">Nenhum acesso registrado ainda.</p>
+            )}
+          </div>
         </div>
       )}
     </Modal>

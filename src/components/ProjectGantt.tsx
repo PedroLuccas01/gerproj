@@ -392,7 +392,9 @@ function TaskRowView({
               setDepFor(depFor === task.id ? null : task.id);
             }}
             className={`rounded p-1 ${
-              task.dependencies.length ? "text-blue-600 dark:text-blue-400" : "text-faint hover:text-muted"
+              task.dependencies.some((id) => allTasks.some((item) => item.id === id))
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-faint hover:text-muted"
             } ${readOnly ? "cursor-default" : ""}`}
             title="Dependências"
           >

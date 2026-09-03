@@ -5,6 +5,7 @@ import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
+import { replaceTaskDependencies, TASK_DEP_INCLUDE } from "@/lib/task-deps";
 import { syncProjectStatusFromSchedule } from "@/lib/sync-project-status";
 import type { Task } from "@/lib/types";
 
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const existing = await prisma.task.findUnique({ where: { id } });
     if (!existing) return jsonError("Tarefa não encontrada.", 404);
 
-    const updated = await prisma.task.update({
+    await prisma.task.update({
       where: { id },
       data: {
         ...(patch.name !== undefined ? { name: patch.name } : {}),
@@ -35,15 +36,21 @@ export async function PATCH(request: Request, { params }: Params) {
         ...(patch.completedAt !== undefined
           ? { completedAt: parseOptionalDate(patch.completedAt) }
           : {}),
-        ...(patch.dependencies !== undefined ? { dependencies: patch.dependencies } : {}),
         ...(patch.order !== undefined ? { order: patch.order } : {}),
         ...(patch.collapsed !== undefined ? { collapsed: patch.collapsed } : {}),
       },
     });
+    if (patch.dependencies !== undefined) {
+      await replaceTaskDependencies(id, existing.projectId, patch.dependencies);
+    }
     if (patch.completed !== undefined || patch.progress !== undefined) {
       await syncProjectStatusFromSchedule(existing.projectId, toAuditActor(access));
     }
-    return NextResponse.json(mapTask(updated));
+    const mapped = await prisma.task.findUnique({
+      where: { id },
+      include: TASK_DEP_INCLUDE,
+    });
+    return NextResponse.json(mapTask(mapped!));
   } catch (error) {
     return handleApiError(error);
   }

@@ -5,6 +5,7 @@ import { mapProject, mapTask } from "@/lib/mappers";
 import { findShareByToken, isShareActive } from "@/lib/project-share";
 import { prisma } from "@/lib/prisma";
 import { requireShareAccess } from "@/lib/share-session";
+import { TASK_DEP_INCLUDE } from "@/lib/task-deps";
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -26,6 +27,7 @@ export async function GET(_request: Request, { params }: Params) {
       }),
       prisma.task.findMany({
         where: { projectId: share.projectId },
+        include: TASK_DEP_INCLUDE,
         orderBy: [{ phase: "asc" }, { order: "asc" }],
       }),
     ]);

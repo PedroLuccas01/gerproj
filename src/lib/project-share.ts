@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { summarizeUserAgent } from "@/lib/request-meta";
 
 const LOGIN_ALPHABET = "abcdefghijkmnopqrstuvwxyz23456789";
 const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -47,7 +48,10 @@ export async function findShareByToken(token: string) {
 export async function findActiveShareForProject(projectId: string) {
   return prisma.projectShare.findFirst({
     where: { projectId, revokedAt: null },
-    include: { project: true },
+    include: {
+      project: true,
+      accesses: { orderBy: { createdAt: "desc" }, take: 40 },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -81,6 +85,7 @@ export function toSharePublic(share: {
   createdAt: Date;
   revokedAt: Date | null;
   project?: { endDate: Date };
+  accesses?: { createdAt: Date; ip: string; userAgent: string; id: string }[];
 }) {
   const expired = !isShareActive(share);
   return {
@@ -90,5 +95,11 @@ export function toSharePublic(share: {
     validUntil: utcDateIso(share.project?.endDate ?? share.expiresAt),
     createdAt: share.createdAt.toISOString(),
     expired,
+    accesses: (share.accesses ?? []).map((item) => ({
+      id: item.id,
+      at: item.createdAt.toISOString(),
+      ip: item.ip || "—",
+      from: summarizeUserAgent(item.userAgent),
+    })),
   };
 }
