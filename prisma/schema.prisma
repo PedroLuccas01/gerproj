@@ -120,6 +120,26 @@ model ProjectTeam {
   @@id([projectId, collaboratorId])
 }
 
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  actorId     String?
+  actorName   String
+  actorEmail  String
+  field       String
+  action      String   @default("update")
+  entityType  String
+  entityId    String
+  entityLabel String
+  summary     String
+  oldValue    String   @default("")
+  newValue    String   @default("")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([field, createdAt])
+  @@index([createdAt])
+}
+
 model Task {
   id           String    @id @default(cuid())
   projectId    String

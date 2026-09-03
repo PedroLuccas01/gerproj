@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { passwordAudit, recordAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
@@ -27,6 +28,13 @@ export async function POST(request: Request) {
       where: { id: user.id },
       data: { passwordHash: await bcrypt.hash(newPassword, 10) },
     });
+    await recordAudit(
+      passwordAudit({
+        actor: toAuditActor(access),
+        targetId: user.id,
+        targetName: user.name,
+      }),
+    );
     return NextResponse.json({ ok: true });
   } catch (error) {
     return handleApiError(error);

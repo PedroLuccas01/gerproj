@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
+import { toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { todayIso } from "@/lib/dates";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
@@ -40,7 +41,7 @@ export async function POST(_request: Request, { params }: Params) {
       );
     }
 
-    const projectStatus = await syncProjectStatusFromSchedule(existing.projectId);
+    const projectStatus = await syncProjectStatusFromSchedule(existing.projectId, toAuditActor(access));
     return NextResponse.json({ tasks: next, projectId: existing.projectId, projectStatus });
   } catch (error) {
     return handleApiError(error);

@@ -3,6 +3,7 @@
 import {
   Building2,
   FolderKanban,
+  History,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/burndown", label: "Burndown", icon: TrendingDown, managementOnly: true },
   { href: "/colaboradores", label: "Colaboradores", icon: Users, managementOnly: true },
   { href: "/clientes", label: "Clientes", icon: Building2, managementOnly: true },
+  { href: "/historico", label: "Histórico", icon: History, managementOnly: true },
 ];
 
 const SIDEBAR_KEY = "pdef-sidebar-collapsed";

@@ -4,6 +4,7 @@ import { CalendarRange, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
 import { Button, StatusBadge } from "@/components/ui";
 import { AREA_LABEL, BUDGET_AREAS, STATUS_BADGE, STATUS_LABEL } from "@/lib/constants";
@@ -18,6 +19,7 @@ export default function ProjetoDetalhePage() {
   const { state, deleteProject } = useStore();
   const { confirm, notify } = useFeedback();
   const [edit, setEdit] = useState(false);
+  const [historyTick, setHistoryTick] = useState(0);
   const project = state.projects.find((p) => p.id === params.id);
 
   if (!project) {
@@ -141,7 +143,26 @@ export default function ProjetoDetalhePage() {
         )}
       </section>
 
-      <ProjectFormModal open={edit} onClose={() => setEdit(false)} project={project} />
+      <section className="rounded-xl border border-line bg-surface p-5">
+        <h2 className="text-sm font-semibold text-navy">Histórico de alterações</h2>
+        <p className="mt-1 text-xs text-muted">Prazo, status, orçamento e equipe deste projeto.</p>
+        <div className="mt-3">
+          <AuditLogPanel
+            projectId={project.id}
+            refreshKey={historyTick}
+            emptyText="Nenhuma alteração de prazo, status, orçamento ou equipe neste projeto."
+          />
+        </div>
+      </section>
+
+      <ProjectFormModal
+        open={edit}
+        onClose={() => {
+          setEdit(false);
+          setHistoryTick((n) => n + 1);
+        }}
+        project={project}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAllocatedToProject, stripBudget } from "@/lib/access";
+import { recordAudits, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError } from "@/lib/api-utils";
 import { mapState, mapTask } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
@@ -36,10 +37,26 @@ export async function GET() {
       .map((project) => project.id);
 
     if (completeIds.length) {
+      const actor = toAuditActor(access);
       await prisma.project.updateMany({
         where: { id: { in: completeIds } },
         data: { status: "concluido" },
       });
+      const audits = completeIds
+        .map((id) => {
+          const project = projects.find((item) => item.id === id);
+          if (!project) return null;
+          return statusAudit({
+            actor,
+            projectId: project.id,
+            projectName: project.name,
+            from: project.status,
+            to: "concluido",
+            action: "auto",
+          });
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+      await recordAudits(audits);
       for (const project of projects) {
         if (completeIds.includes(project.id)) project.status = "concluido";
       }

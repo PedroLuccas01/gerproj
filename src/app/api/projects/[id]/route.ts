@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { diffProjectAudits, recordAudits, toAuditActor } from "@/lib/audit";
 import { requireManagement } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapProject, parseDate } from "@/lib/mappers";
@@ -15,8 +16,17 @@ export async function PATCH(request: Request, { params }: Params) {
     requireManagement(access);
     const { id } = await params;
     const patch = (await request.json()) as Partial<Project>;
-    const existing = await prisma.project.findUnique({ where: { id } });
+    const existing = await prisma.project.findUnique({
+      where: { id },
+      include: { team: true },
+    });
     if (!existing) return jsonError("Projeto não encontrado.", 404);
+
+    const audits = await diffProjectAudits({
+      actor: toAuditActor(access),
+      existing,
+      patch,
+    });
 
     if (patch.teamIds) {
       await prisma.projectTeam.deleteMany({ where: { projectId: id } });
@@ -51,6 +61,7 @@ export async function PATCH(request: Request, { params }: Params) {
       },
       include: { team: true },
     });
+    await recordAudits(audits);
     if (patch.endDate !== undefined) {
       await syncShareExpiry(id, updated.endDate);
     }

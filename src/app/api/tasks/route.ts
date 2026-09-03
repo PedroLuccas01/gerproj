@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
+import { recordAudit, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapTask } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     const [project, orderAgg, seqAgg] = await Promise.all([
       prisma.project.findUnique({
         where: { id: body.projectId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, name: true },
       }),
       prisma.task.aggregate({
         where: { projectId: body.projectId, phase: body.phase, parentId },
@@ -52,6 +53,15 @@ export async function POST(request: Request) {
         where: { id: body.projectId },
         data: { status: "em_andamento" },
       });
+      const entry = statusAudit({
+        actor: toAuditActor(access),
+        projectId: body.projectId,
+        projectName: project.name,
+        from: "concluido",
+        to: "em_andamento",
+        action: "auto",
+      });
+      if (entry) await recordAudit(entry);
     }
 
     return NextResponse.json(mapTask(created));

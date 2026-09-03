@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { assertCanAssignArea, assertCanEditStaff, requireManagement } from "@/lib/access";
+import { passwordAudit, recordAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapCollaborator } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
@@ -56,6 +57,16 @@ export async function PATCH(request: Request, { params }: Params) {
           ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
         },
       });
+      if (password) {
+        await recordAudit(
+          passwordAudit({
+            actor: toAuditActor(access),
+            targetId: account.id,
+            targetName: updated.name,
+            byManagement: true,
+          }),
+        );
+      }
     }
 
     return NextResponse.json(mapCollaborator(updated));
