@@ -47,6 +47,12 @@ export default function ColaboradoresPage() {
     (area) => isAdmin || area !== "gestao",
   );
 
+  function canManagePerson(person: Collaborator, account?: AccountUser) {
+    if (isAdmin) return true;
+    if (person.area === "gestao" || account?.isAdmin) return false;
+    return true;
+  }
+
   const loadUsers = useCallback(async () => {
     const res = await fetch("/api/users");
     if (!res.ok) return;
@@ -58,7 +64,11 @@ export default function ColaboradoresPage() {
     void loadUsers();
   }, [loadUsers]);
 
-  function startEdit(person: Collaborator) {
+  function startEdit(person: Collaborator, account?: AccountUser) {
+    if (!canManagePerson(person, account)) {
+      notify({ type: "warning", title: "Somente o administrador pode editar este cadastro." });
+      return;
+    }
     setEditing(person);
     setDraft({
       name: person.name,
@@ -248,6 +258,7 @@ export default function ColaboradoresPage() {
             ) : null}
             {state.collaborators.map((person) => {
               const account = accountByEmail.get(person.email.toLowerCase());
+              const canManage = canManagePerson(person, account);
               return (
                 <tr key={person.id} className="border-t border-line-subtle">
                   <td className="px-4 py-3 font-medium text-ink">
@@ -283,13 +294,16 @@ export default function ColaboradoresPage() {
                         <Shield className="h-4 w-4" />
                       </button>
                     ) : null}
+                    {canManage ? (
                     <button
                       type="button"
-                      onClick={() => startEdit(person)}
+                      onClick={() => startEdit(person, account)}
                       className="mr-1 rounded p-1 text-muted hover:bg-hover"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
+                    ) : null}
+                    {canManage ? (
                     <button
                       type="button"
                       onClick={async () => {
@@ -315,6 +329,7 @@ export default function ColaboradoresPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    ) : null}
                   </td>
                 </tr>
               );

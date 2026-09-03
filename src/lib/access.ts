@@ -68,6 +68,20 @@ export function requireAdmin(user: AuthUser) {
   if (!user.isAdmin) forbid("Apenas o administrador pode realizar esta ação.");
 }
 
+export function isPrivilegedStaff(target: { isAdmin?: boolean; area?: Area | null }) {
+  return Boolean(target.isAdmin) || target.area === "gestao";
+}
+
+export function assertCanEditStaff(
+  actor: AuthUser,
+  target: { isAdmin?: boolean; area?: Area | null },
+) {
+  if (actor.isAdmin) return;
+  if (isPrivilegedStaff(target)) {
+    forbid("Somente o administrador pode alterar cadastros de gestão ou admin.");
+  }
+}
+
 export function assertCanAssignArea(user: AuthUser, area: Area, previous?: Area) {
   const touchesGestao = area === "gestao" || previous === "gestao";
   if (touchesGestao && area !== previous && !user.isAdmin) {

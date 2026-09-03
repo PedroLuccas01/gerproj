@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { assertCanAssignArea, requireManagement } from "@/lib/access";
+import { assertCanAssignArea, assertCanEditStaff, requireManagement } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { mapCollaborator } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +18,10 @@ export async function PATCH(request: Request, { params }: Params) {
     const patch = (await request.json()) as Partial<Collaborator> & { password?: string };
     const existing = await prisma.collaborator.findUnique({ where: { id } });
     if (!existing) return jsonError("Colaborador não encontrado.", 404);
+    const account = await prisma.user.findFirst({
+      where: { email: existing.email.toLowerCase() },
+    });
+    assertCanEditStaff(access, { isAdmin: account?.isAdmin, area: existing.area });
     if (patch.area !== undefined) {
       assertCanAssignArea(access, patch.area, existing.area);
     }
@@ -43,9 +47,6 @@ export async function PATCH(request: Request, { params }: Params) {
       },
     });
 
-    const account = await prisma.user.findFirst({
-      where: { email: existing.email.toLowerCase() },
-    });
     if (account && !isSupportLogin(account.email)) {
       await prisma.user.update({
         where: { id: account.id },
@@ -68,6 +69,13 @@ export async function DELETE(_request: Request, { params }: Params) {
     const access = await requireAccess();
     requireManagement(access);
     const { id } = await params;
+    const existing = await prisma.collaborator.findUnique({ where: { id } });
+    if (!existing) return jsonError("Colaborador não encontrado.", 404);
+    const account = await prisma.user.findFirst({
+      where: { email: existing.email.toLowerCase() },
+      select: { isAdmin: true },
+    });
+    assertCanEditStaff(access, { isAdmin: account?.isAdmin, area: existing.area });
     await prisma.collaborator.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {
