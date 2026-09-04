@@ -9,6 +9,7 @@ export type AppNotification = {
   description: string;
   href: string;
   tone: NotificationTone;
+  notificationId?: string;
 };
 
 export type PendingAccount = {
@@ -96,4 +97,14 @@ export function buildNotifications(input: {
 
   const rank = { danger: 0, warning: 1, info: 2 };
   return items.sort((a, b) => rank[a.tone] - rank[b.tone] || a.title.localeCompare(b.title));
+}
+
+export function mergeNotifications(
+  systemItems: AppNotification[],
+  historyItems: AppNotification[],
+): AppNotification[] {
+  const rank = { danger: 0, warning: 1, info: 2 };
+  return [...historyItems, ...systemItems].sort(
+    (a, b) => rank[a.tone] - rank[b.tone] || a.title.localeCompare(b.title),
+  );
 }

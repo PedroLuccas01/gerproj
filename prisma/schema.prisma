@@ -63,6 +63,7 @@ model Collaborator {
   taskAssignments TaskAssignee[]
   teams           ProjectTeam[]
   historyMentions ProjectHistoryMention[]
+  historyNotifications ProjectHistoryNotification[]
 }
 
 model Client {
@@ -172,9 +173,10 @@ model Task {
   progress     Int       @default(0)
   dependsOn    TaskDependency[] @relation("TaskDepends")
   dependedBy   TaskDependency[] @relation("TaskPredecessor")
-  assignees    TaskAssignee[]
-  order        Int       @default(0)
-  collapsed    Boolean   @default(false)
+  assignees      TaskAssignee[]
+  order          Int       @default(0)
+  collapsed      Boolean   @default(false)
+  historyEntries ProjectHistoryEntry[]
 }
 
 model TaskAssignee {
@@ -201,6 +203,8 @@ model ProjectHistoryEntry {
   id          String   @id @default(cuid())
   projectId   String
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   authorId    String
   authorName  String
   authorEmail String
@@ -213,8 +217,10 @@ model ProjectHistoryEntry {
   createdAt          DateTime @default(now())
   updatedAt   DateTime @updatedAt
   mentions    ProjectHistoryMention[]
+  notifications ProjectHistoryNotification[]
 
   @@index([projectId, createdAt])
+  @@index([projectId, taskId, createdAt])
 }
 
 model ProjectHistoryMention {
@@ -225,4 +231,24 @@ model ProjectHistoryMention {
 
   @@id([entryId, collaboratorId])
   @@index([collaboratorId])
+}
+
+enum HistoryNotificationReason {
+  mention
+  assignee
+  team
+}
+
+model ProjectHistoryNotification {
+  id             String                    @id @default(cuid())
+  entryId        String
+  entry          ProjectHistoryEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  collaboratorId String
+  collaborator   Collaborator              @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  reason         HistoryNotificationReason
+  readAt         DateTime?
+  createdAt      DateTime                  @default(now())
+
+  @@unique([entryId, collaboratorId])
+  @@index([collaboratorId, readAt, createdAt])
 }

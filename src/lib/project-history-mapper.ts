@@ -7,6 +7,7 @@ export function mapProjectHistoryEntry(row: DbHistoryEntry): ProjectHistoryEntry
   return {
     id: row.id,
     projectId: row.projectId,
+    taskId: row.taskId,
     authorId: row.authorId,
     authorName: row.authorName,
     authorEmail: row.authorEmail,

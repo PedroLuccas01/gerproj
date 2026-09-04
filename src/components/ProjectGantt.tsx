@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, ClipboardPaste, Copy, Link2, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ClipboardPaste, Copy, Link2, MessageCircle, MoreVertical, Plus, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   PHASE_COLOR,
@@ -28,7 +28,7 @@ import { snapshotTaskTree, type TaskTreeNode } from "@/lib/task-clipboard";
 import type { Project, Task, TaskPhase } from "@/lib/types";
 import { ProgressSelect } from "./ui";
 
-const TABLE_W = 1060;
+const TABLE_W = 1100;
 const ROW = 48;
 const PHASE_H = 40;
 
@@ -41,11 +41,15 @@ export function ProjectGantt({
   readOnly = false,
   tasks: tasksOverride,
   people: peopleOverride,
+  requestCounts,
+  onOpenTaskRequests,
 }: {
   project: Project;
   readOnly?: boolean;
   tasks?: Task[];
   people?: { id: string; name: string }[];
+  requestCounts?: Record<string, number>;
+  onOpenTaskRequests?: (task: Task) => void;
 }) {
   const { state, addTask, pasteTasks, updateTask, setTaskProgress, deleteTask } = useStore();
   const { confirm, notify } = useFeedback();
@@ -309,6 +313,10 @@ export function ProjectGantt({
                           }
                           updateTask(root.id, { collapsed: !root.collapsed });
                         }}
+                        requestCount={requestCounts?.[root.id] ?? 0}
+                        onOpenRequests={
+                          onOpenTaskRequests ? () => onOpenTaskRequests(root) : undefined
+                        }
                       />
                       {showKids
                         ? kids.map((child) => (
@@ -337,6 +345,10 @@ export function ProjectGantt({
                               canPaste={Boolean(clipboard) && !pasting}
                               onAddChild={() => undefined}
                               onToggleCollapse={() => undefined}
+                              requestCount={requestCounts?.[child.id] ?? 0}
+                              onOpenRequests={
+                                onOpenTaskRequests ? () => onOpenTaskRequests(child) : undefined
+                              }
                             />
                           ))
                         : null}
@@ -411,6 +423,8 @@ function TaskRowView({
   shouldFocusName = false,
   onNameFocused,
   readOnly = false,
+  requestCount = 0,
+  onOpenRequests,
 }: {
   task: Task;
   depth: number;
@@ -433,6 +447,8 @@ function TaskRowView({
   shouldFocusName?: boolean;
   onNameFocused?: () => void;
   readOnly?: boolean;
+  requestCount?: number;
+  onOpenRequests?: () => void;
 }) {
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -616,6 +632,27 @@ function TaskRowView({
             readOnly={readOnly}
           />
         </div>
+        {onOpenRequests ? (
+          <div className="relative flex h-[34px] w-10 items-center justify-center px-1">
+            <button
+              type="button"
+              onClick={onOpenRequests}
+              className={`relative rounded p-1 ${
+                requestCount > 0
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-faint hover:text-muted"
+              }`}
+              title="Solicitações da atividade"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {requestCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
+                  {requestCount > 9 ? "9+" : requestCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        ) : null}
         {readOnly ? null : (
           <div className="flex h-[34px] w-10 items-center px-1">
             <TaskActions

@@ -84,6 +84,7 @@ export interface Task {
 export interface ProjectHistoryEntry {
   id: string;
   projectId: string;
+  taskId: string | null;
   authorId: string;
   authorName: string;
   authorEmail: string;

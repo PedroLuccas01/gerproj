@@ -201,11 +201,21 @@ export function ProjectHistoryPanel({
   collaborators,
   canWrite,
   isManagement,
+  scope = "project",
+  taskId,
+  taskLabel,
+  embedded = false,
+  onEntriesChange,
 }: {
   project: Project;
   collaborators: Collaborator[];
   canWrite: boolean;
   isManagement: boolean;
+  scope?: "project" | "task";
+  taskId?: string;
+  taskLabel?: string;
+  embedded?: boolean;
+  onEntriesChange?: () => void;
 }) {
   const { user } = useAuth();
   const { confirm, notify } = useFeedback();
@@ -240,14 +250,55 @@ export function ProjectHistoryPanel({
     setViewerOpen(true);
   }
 
+  const isProjectScope = scope === "project";
+  const labels = isProjectScope
+    ? {
+        search: "Pesquisar nos comentários...",
+        add: "Adicionar comentário",
+        composer: "Escreva o comentário. Use @ para mencionar alguém da equipe.",
+        save: "Salvar comentário",
+        loading: "Carregando comentários...",
+        empty: "Nenhum comentário ainda.",
+        emptySearch: "Nenhum comentário encontrado para esta busca.",
+        added: "Comentário adicionado",
+        updated: "Comentário atualizado",
+        deleted: "Comentário excluído",
+        deleteTitle: "Excluir comentário",
+        deleteDescription: "Excluir este comentário do projeto?",
+      }
+    : {
+        search: "Pesquisar nas solicitações...",
+        add: "Nova solicitação",
+        composer:
+          "Descreva o que precisa para concluir esta atividade. Use @ para cobrar alguém da equipe.",
+        save: "Salvar solicitação",
+        loading: "Carregando solicitações...",
+        empty: "Nenhuma solicitação para esta atividade.",
+        emptySearch: "Nenhuma solicitação encontrada para esta busca.",
+        added: "Solicitação registrada",
+        updated: "Solicitação atualizada",
+        deleted: "Solicitação excluída",
+        deleteTitle: "Excluir solicitação",
+        deleteDescription: "Excluir esta solicitação da atividade?",
+      };
+
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
+    if (isProjectScope) params.set("scope", "project");
+    else if (taskId) params.set("taskId", taskId);
     const response = await fetch(`/api/projects/${project.id}/history?${params.toString()}`);
     const data = (await response.json()) as { items?: ProjectHistoryEntry[]; error?: string };
-    if (!response.ok) throw new Error(data.error || "Não foi possível carregar os comentários.");
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+          (isProjectScope
+            ? "Não foi possível carregar os comentários."
+            : "Não foi possível carregar as solicitações."),
+      );
+    }
     setItems(data.items ?? []);
-  }, [project.id, query]);
+  }, [project.id, query, isProjectScope, taskId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search.trim()), 250);
@@ -260,7 +311,13 @@ export function ProjectHistoryPanel({
     setItems(null);
     load().catch((err: unknown) => {
       if (cancelled) return;
-      setError(err instanceof Error ? err.message : "Não foi possível carregar os comentários.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : isProjectScope
+            ? "Não foi possível carregar os comentários."
+            : "Não foi possível carregar as solicitações.",
+      );
       setItems([]);
     });
     return () => {
@@ -287,16 +344,28 @@ export function ProjectHistoryPanel({
       const response = await fetch(`/api/projects/${project.id}/history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, attachment }),
+        body: JSON.stringify({
+          content,
+          attachment,
+          taskId: isProjectScope ? null : taskId,
+        }),
       });
       const data = (await response.json()) as ProjectHistoryEntry & { error?: string };
-      if (!response.ok) throw new Error(data.error || "Não foi possível salvar o comentário.");
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            (isProjectScope
+              ? "Não foi possível salvar o comentário."
+              : "Não foi possível salvar a solicitação."),
+        );
+      }
       setItems((prev) => [data, ...(prev ?? [])]);
       setSelectedId(data.id);
       setDraft("");
       setDraftFile(null);
       setShowComposer(false);
-      notify({ type: "success", title: "Comentário adicionado" });
+      onEntriesChange?.();
+      notify({ type: "success", title: labels.added });
     } catch (err) {
       notify({
         type: "error",
@@ -325,14 +394,22 @@ export function ProjectHistoryPanel({
         }),
       });
       const data = (await response.json()) as ProjectHistoryEntry & { error?: string };
-      if (!response.ok) throw new Error(data.error || "Não foi possível salvar o comentário.");
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            (isProjectScope
+              ? "Não foi possível salvar o comentário."
+              : "Não foi possível salvar a solicitação."),
+        );
+      }
       setItems((prev) => (prev ?? []).map((item) => (item.id === entry.id ? data : item)));
       setSelectedId(data.id);
       setEditingId(null);
       setEditDraft("");
       setEditFile(null);
       setRemoveEditAttachment(false);
-      notify({ type: "success", title: "Comentário atualizado" });
+      onEntriesChange?.();
+      notify({ type: "success", title: labels.updated });
     } catch (err) {
       notify({
         type: "error",
@@ -346,8 +423,8 @@ export function ProjectHistoryPanel({
 
   async function removeEntry(entry: ProjectHistoryEntry) {
     const ok = await confirm({
-      title: "Excluir comentário",
-      description: "Excluir este comentário do projeto?",
+      title: labels.deleteTitle,
+      description: labels.deleteDescription,
       confirmLabel: "Excluir",
       tone: "danger",
     });
@@ -357,10 +434,18 @@ export function ProjectHistoryPanel({
         method: "DELETE",
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Não foi possível excluir o comentário.");
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            (isProjectScope
+              ? "Não foi possível excluir o comentário."
+              : "Não foi possível excluir a solicitação."),
+        );
+      }
       setItems((prev) => (prev ?? []).filter((item) => item.id !== entry.id));
       if (selectedId === entry.id) setSelectedId(null);
-      notify({ type: "success", title: "Comentário excluído" });
+      onEntriesChange?.();
+      notify({ type: "success", title: labels.deleted });
     } catch (err) {
       notify({
         type: "error",
@@ -374,13 +459,18 @@ export function ProjectHistoryPanel({
 
   return (
     <div className="space-y-4">
+      {!embedded && taskLabel ? (
+        <p className="text-sm text-muted">
+          Atividade: <span className="font-medium text-ink">{taskLabel}</span>
+        </p>
+      ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
           <TextInput
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Pesquisar nos comentários..."
+            placeholder={labels.search}
             className="pl-9"
           />
         </div>
@@ -393,7 +483,7 @@ export function ProjectHistoryPanel({
             }}
           >
             <Plus className="h-4 w-4" />
-            Adicionar comentário
+            {labels.add}
           </Button>
         ) : null}
       </div>
@@ -404,7 +494,7 @@ export function ProjectHistoryPanel({
             value={draft}
             onChange={setDraft}
             members={members}
-            placeholder="Escreva o comentário. Use @ para mencionar alguém da equipe."
+            placeholder={labels.composer}
             autoFocus
           />
           <AttachmentPicker file={draftFile} onChange={setDraftFile} />
@@ -423,22 +513,27 @@ export function ProjectHistoryPanel({
               disabled={saving || (!draft.trim() && !draftFile)}
               onClick={() => void createEntry()}
             >
-              Salvar comentário
+              {labels.save}
             </Button>
           </div>
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+      <div
+        className={cn(
+          "grid gap-4",
+          embedded ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]",
+        )}
+      >
         <div>
           {items === null ? (
-            <p className="text-sm text-muted">Carregando comentários...</p>
+            <p className="text-sm text-muted">{labels.loading}</p>
           ) : error ? (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           ) : !items.length ? (
             <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center">
               <p className="text-sm text-muted">
-                {query ? "Nenhum comentário encontrado para esta busca." : "Nenhum comentário ainda."}
+                {query ? labels.emptySearch : labels.empty}
               </p>
             </div>
           ) : (
@@ -609,11 +704,13 @@ export function ProjectHistoryPanel({
           )}
         </div>
 
-        <CommentAttachmentPreview
-          entry={selectedEntry}
-          className="xl:sticky xl:top-4 xl:self-start"
-          onExpand={selectedEntry?.attachmentUrl ? () => setViewerOpen(true) : undefined}
-        />
+        {!embedded ? (
+          <CommentAttachmentPreview
+            entry={selectedEntry}
+            className="xl:sticky xl:top-4 xl:self-start"
+            onExpand={selectedEntry?.attachmentUrl ? () => setViewerOpen(true) : undefined}
+          />
+        ) : null}
       </div>
 
       <AttachmentViewerModal

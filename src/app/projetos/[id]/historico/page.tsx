@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 
-type Params = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }> };
 
-export default async function ProjetoHistoricoRedirect({ params }: Params) {
+export default async function ProjetoHistoricoRedirectPage({ params }: Props) {
   const { id } = await params;
-  redirect(`/projetos/${id}/comentarios`);
+  redirect(`/projetos/${id}/cronograma?comentarios=1`);
 }

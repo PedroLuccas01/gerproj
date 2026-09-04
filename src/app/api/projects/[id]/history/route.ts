@@ -7,6 +7,7 @@ import {
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import type { CommentAttachmentInput } from "@/lib/comment-attachments";
 import { attachmentDataFromInput } from "@/lib/comment-blob";
+import { createHistoryNotifications } from "@/lib/history-notifications";
 import { mapProjectHistoryEntry } from "@/lib/project-history-mapper";
 import { parseMentionIds, projectTeamMembers } from "@/lib/project-history";
 import { mapCollaborator } from "@/lib/mappers";
@@ -25,10 +26,14 @@ export async function GET(request: Request, { params }: Params) {
 
     const url = new URL(request.url);
     const q = url.searchParams.get("q")?.trim() ?? "";
+    const scope = url.searchParams.get("scope");
+    const taskId = url.searchParams.get("taskId")?.trim() ?? "";
 
     const rows = await prisma.projectHistoryEntry.findMany({
       where: {
         projectId,
+        ...(scope === "project" ? { taskId: null } : {}),
+        ...(taskId ? { taskId } : {}),
         ...(q ? { content: { contains: q, mode: "insensitive" } } : {}),
       },
       include: HISTORY_INCLUDE,
@@ -51,10 +56,17 @@ export async function POST(request: Request, { params }: Params) {
     const body = (await request.json()) as {
       content?: string;
       attachment?: CommentAttachmentInput | null;
+      taskId?: string | null;
     };
     const content = body.content?.trim() ?? "";
     const attachment = attachmentDataFromInput(body.attachment);
     if (!content && !attachment) return jsonError("Informe o comentário ou anexe um arquivo.");
+
+    const taskId = body.taskId?.trim() || null;
+    if (taskId) {
+      const task = await prisma.task.findFirst({ where: { id: taskId, projectId } });
+      if (!task) return jsonError("Atividade não encontrada neste projeto.", 404);
+    }
 
     const project = await loadProjectForAccess(projectId);
     const collaborators = await prisma.collaborator.findMany({ where: { active: true } });
@@ -70,6 +82,7 @@ export async function POST(request: Request, { params }: Params) {
     const created = await prisma.projectHistoryEntry.create({
       data: {
         projectId,
+        taskId,
         authorId: access.id,
         authorName: access.name,
         authorEmail: access.email,
@@ -80,6 +93,14 @@ export async function POST(request: Request, { params }: Params) {
           : undefined,
       },
       include: HISTORY_INCLUDE,
+    });
+
+    await createHistoryNotifications({
+      entryId: created.id,
+      projectId,
+      taskId,
+      mentionIds,
+      authorEmail: access.email,
     });
 
     return NextResponse.json(mapProjectHistoryEntry(created));

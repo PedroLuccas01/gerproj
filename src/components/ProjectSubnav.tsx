@@ -19,12 +19,10 @@ export function ProjectSubnav({
     {
       href: `/projetos/${projectId}/cronograma`,
       label: "Cronograma",
-      match: (path: string) => path.endsWith("/cronograma"),
-    },
-    {
-      href: `/projetos/${projectId}/comentarios`,
-      label: "Comentários",
-      match: (path: string) => path.endsWith("/comentarios") || path.endsWith("/historico"),
+      match: (path: string) =>
+        path.endsWith("/cronograma") ||
+        path.endsWith("/comentarios") ||
+        path.endsWith("/historico"),
     },
   ];
 

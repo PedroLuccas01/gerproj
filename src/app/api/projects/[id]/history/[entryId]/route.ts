@@ -11,6 +11,7 @@ import {
   clearAttachmentData,
   deleteCommentAttachment,
 } from "@/lib/comment-blob";
+import { notifyNewMentions } from "@/lib/history-notifications";
 import { mapCollaborator } from "@/lib/mappers";
 import { mapProjectHistoryEntry } from "@/lib/project-history-mapper";
 import { parseMentionIds, projectTeamMembers } from "@/lib/project-history";
@@ -82,6 +83,15 @@ export async function PATCH(request: Request, { params }: Params) {
           : undefined,
       },
       include: HISTORY_INCLUDE,
+    });
+
+    await notifyNewMentions({
+      entryId,
+      projectId,
+      taskId: existing.taskId,
+      previousMentionIds: existing.mentions.map((mention) => mention.collaboratorId),
+      nextMentionIds: mentionIds,
+      authorEmail: access.email,
     });
 
     return NextResponse.json(mapProjectHistoryEntry(updated));

@@ -162,12 +162,6 @@ export default function ProjetosPage() {
                 >
                   Cronograma
                 </Link>
-                <Link
-                  href={`/projetos/${project.id}/comentarios`}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-hover"
-                >
-                  Comentários
-                </Link>
                 {isManagement ? (
                   <Link
                     href={`/projetos/${project.id}`}
