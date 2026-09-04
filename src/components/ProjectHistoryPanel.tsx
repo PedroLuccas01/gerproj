@@ -2,7 +2,7 @@
 
 import { Pencil, Paperclip, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AttachmentBadge, CommentAttachmentPreview } from "@/components/CommentAttachmentPreview";
+import { AttachmentBadge, AttachmentViewerModal, CommentAttachmentPreview } from "@/components/CommentAttachmentPreview";
 import { Button, TextArea, TextInput, cn } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import {
@@ -220,6 +220,7 @@ export function ProjectHistoryPanel({
   const [editFile, setEditFile] = useState<File | null>(null);
   const [removeEditAttachment, setRemoveEditAttachment] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -232,6 +233,12 @@ export function ProjectHistoryPanel({
     () => (items ?? []).find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
   );
+
+  function openAttachmentViewer(entry: ProjectHistoryEntry) {
+    if (!entry.attachmentUrl) return;
+    setSelectedId(entry.id);
+    setViewerOpen(true);
+  }
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -533,7 +540,10 @@ export function ProjectHistoryPanel({
                                     />
                                     {entry.attachmentUrl && !removeEditAttachment && !editFile ? (
                                       <div className="flex items-center gap-2">
-                                        <AttachmentBadge name={entry.attachmentName ?? "Anexo"} />
+                                        <AttachmentBadge
+                                          name={entry.attachmentName ?? "Anexo"}
+                                          onOpen={() => openAttachmentViewer(entry)}
+                                        />
                                         <button
                                           type="button"
                                           onClick={() => setRemoveEditAttachment(true)}
@@ -578,7 +588,10 @@ export function ProjectHistoryPanel({
                                     ) : null}
                                     {entry.attachmentName ? (
                                       <div className="mt-2">
-                                        <AttachmentBadge name={entry.attachmentName} />
+                                        <AttachmentBadge
+                                          name={entry.attachmentName}
+                                          onOpen={() => openAttachmentViewer(entry)}
+                                        />
                                       </div>
                                     ) : null}
                                   </>
@@ -596,8 +609,18 @@ export function ProjectHistoryPanel({
           )}
         </div>
 
-        <CommentAttachmentPreview entry={selectedEntry} className="xl:sticky xl:top-4 xl:self-start" />
+        <CommentAttachmentPreview
+          entry={selectedEntry}
+          className="xl:sticky xl:top-4 xl:self-start"
+          onExpand={selectedEntry?.attachmentUrl ? () => setViewerOpen(true) : undefined}
+        />
       </div>
+
+      <AttachmentViewerModal
+        entry={selectedEntry}
+        open={viewerOpen && Boolean(selectedEntry?.attachmentUrl)}
+        onClose={() => setViewerOpen(false)}
+      />
     </div>
   );
 }

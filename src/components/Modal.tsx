@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   wide,
+  xl,
 }: {
   open: boolean;
   onClose: () => void;
@@ -19,16 +20,18 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  xl?: boolean;
 }) {
   if (!open) return null;
+
+  const widthClass = xl ? "max-w-6xl" : wide ? "max-w-3xl" : "max-w-2xl";
+  const heightClass = xl ? "max-h-[min(96vh,960px)]" : "max-h-[min(920px,calc(100vh-4rem))]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-8 dark:bg-black/60">
       <button className="absolute inset-0 cursor-default" aria-label="Fechar" onClick={onClose} />
       <div
-        className={`relative z-10 my-4 flex max-h-[min(920px,calc(100vh-4rem))] w-full flex-col rounded-2xl bg-surface shadow-xl ${
-          wide ? "max-w-3xl" : "max-w-2xl"
-        }`}
+        className={`relative z-10 my-4 flex ${heightClass} w-full flex-col rounded-2xl bg-surface shadow-xl ${widthClass}`}
       >
         <div className="flex items-start justify-between border-b border-line-subtle px-6 py-4">
           <div>
@@ -44,7 +47,9 @@ export function Modal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${xl ? "px-6 py-4" : "overflow-y-auto px-6 py-5"}`}>
+          {children}
+        </div>
         {footer ? (
           <div className="flex items-center justify-end gap-3 border-t border-line-subtle px-6 py-4">
             {footer}
