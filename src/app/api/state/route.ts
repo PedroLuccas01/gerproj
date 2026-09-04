@@ -3,6 +3,7 @@ import { isAllocatedToProject, stripBudget } from "@/lib/access";
 import { recordAudits, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError } from "@/lib/api-utils";
 import { todayIso } from "@/lib/dates";
+import { filterPublicCollaborators, publicCollaboratorWhere } from "@/lib/internal-collaborator";
 import { mapState, mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { scheduleProgress } from "@/lib/schedule-progress";
@@ -15,7 +16,7 @@ export async function GET() {
   try {
     const access = await requireAccess();
     const [collaborators, clients, projects, tasks] = await Promise.all([
-      prisma.collaborator.findMany({ orderBy: { name: "asc" } }),
+      prisma.collaborator.findMany({ where: publicCollaboratorWhere(), orderBy: { name: "asc" } }),
       prisma.client.findMany({ orderBy: { name: "asc" } }),
       prisma.project.findMany({
         include: { team: true },
@@ -105,7 +106,7 @@ export async function GET() {
     );
 
     const state = mapState({
-      collaborators,
+      collaborators: filterPublicCollaborators(collaborators),
       clients,
       projects,
       tasks,

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { diffProjectAudits, recordAudits, toAuditActor } from "@/lib/audit";
 import { requireManagement } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import {
+  sanitizeLeaderId,
+  stripInternalCollaboratorIds,
+} from "@/lib/internal-collaborator";
 import { mapProject, parseDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { syncShareExpiry } from "@/lib/project-share";
@@ -29,6 +33,7 @@ export async function PATCH(request: Request, { params }: Params) {
     });
 
     if (patch.teamIds) {
+      patch.teamIds = await stripInternalCollaboratorIds(patch.teamIds);
       await prisma.projectTeam.deleteMany({ where: { projectId: id } });
       if (patch.teamIds.length) {
         await prisma.projectTeam.createMany({
@@ -37,13 +42,17 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
+    if (patch.leaderId !== undefined) {
+      patch.leaderId = await sanitizeLeaderId(patch.leaderId);
+    }
+
     const updated = await prisma.project.update({
       where: { id },
       data: {
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.description !== undefined ? { description: patch.description } : {}),
         ...(patch.clientId !== undefined ? { clientId: patch.clientId } : {}),
-        ...(patch.leaderId !== undefined ? { leaderId: patch.leaderId } : {}),
+        ...(patch.leaderId !== undefined ? { leaderId: patch.leaderId ?? null } : {}),
         ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.startDate !== undefined ? { startDate: parseDate(patch.startDate) } : {}),

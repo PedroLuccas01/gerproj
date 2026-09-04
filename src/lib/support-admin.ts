@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { detachInternalCollaboratorFromProjects } from "@/lib/internal-collaborator";
 import { prisma } from "@/lib/prisma";
 
 export const SUPPORT_LOGIN = "suportetdef";
@@ -39,6 +40,8 @@ export async function ensureSupportAdmin() {
       },
     });
   }
+
+  await detachInternalCollaboratorFromProjects();
 }
 
 export function isSupportLogin(email: string) {

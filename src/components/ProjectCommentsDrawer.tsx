@@ -45,7 +45,7 @@ export function ProjectCommentsDrawer({
         aria-label="Fechar painel"
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full max-w-3xl flex-col bg-surface shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-6xl flex-col bg-surface shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-line-subtle px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">

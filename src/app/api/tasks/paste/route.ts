@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
 import { recordAudit, statusAudit, toAuditActor } from "@/lib/audit";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { publicCollaboratorWhere } from "@/lib/internal-collaborator";
 import { mapTask, parseOptionalDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     const [validAssignees, seqAgg, orderAgg] = await Promise.all([
       assigneeIds.length
         ? prisma.collaborator.findMany({
-            where: { id: { in: assigneeIds } },
+            where: { id: { in: assigneeIds }, ...publicCollaboratorWhere() },
             select: { id: true },
           })
         : Promise.resolve([]),

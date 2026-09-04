@@ -8,6 +8,11 @@ import { handleApiError, jsonError } from "@/lib/api-utils";
 import type { CommentAttachmentInput } from "@/lib/comment-attachments";
 import { attachmentDataFromInput } from "@/lib/comment-blob";
 import { createHistoryNotifications } from "@/lib/history-notifications";
+import {
+  filterPublicCollaborators,
+  publicCollaboratorWhere,
+  stripInternalCollaboratorIds,
+} from "@/lib/internal-collaborator";
 import { mapProjectHistoryEntry } from "@/lib/project-history-mapper";
 import { parseMentionIds, projectTeamMembers } from "@/lib/project-history";
 import { mapCollaborator } from "@/lib/mappers";
@@ -69,7 +74,9 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const project = await loadProjectForAccess(projectId);
-    const collaborators = await prisma.collaborator.findMany({ where: { active: true } });
+    const collaborators = filterPublicCollaborators(
+      await prisma.collaborator.findMany({ where: { active: true, ...publicCollaboratorWhere() } }),
+    );
     const members = projectTeamMembers(
       {
         leaderId: project.leaderId,
@@ -77,7 +84,9 @@ export async function POST(request: Request, { params }: Params) {
       },
       collaborators.map(mapCollaborator),
     );
-    const mentionIds = parseMentionIds(content, members);
+    const mentionIds = (await stripInternalCollaboratorIds(
+      parseMentionIds(content, members),
+    ));
 
     const created = await prisma.projectHistoryEntry.create({
       data: {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripBudget } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { publicCollaboratorWhere } from "@/lib/internal-collaborator";
 import { mapProject, mapTask } from "@/lib/mappers";
 import { findShareByToken, isShareActive } from "@/lib/project-share";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +43,7 @@ export async function GET(_request: Request, { params }: Params) {
       assigneeIds.length === 0
         ? []
         : await prisma.collaborator.findMany({
-            where: { id: { in: assigneeIds } },
+            where: { id: { in: assigneeIds }, ...publicCollaboratorWhere() },
             select: { id: true, name: true },
           });
 

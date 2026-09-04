@@ -1,4 +1,5 @@
 import type { HistoryNotificationReason } from "@prisma/client";
+import { getInternalCollaboratorId } from "@/lib/internal-collaborator";
 import { prisma } from "@/lib/prisma";
 import { assigneeIds, TASK_ASSIGNEE_INCLUDE } from "@/lib/task-assignees";
 
@@ -17,17 +18,22 @@ function pickReason(
 }
 
 async function projectTeamIds(projectId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      leaderId: true,
-      team: { select: { collaboratorId: true } },
-    },
-  });
+  const [project, internalId] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        leaderId: true,
+        team: { select: { collaboratorId: true } },
+      },
+    }),
+    getInternalCollaboratorId(),
+  ]);
   if (!project) return [];
   const ids = new Set<string>();
-  if (project.leaderId) ids.add(project.leaderId);
-  for (const member of project.team) ids.add(member.collaboratorId);
+  if (project.leaderId && project.leaderId !== internalId) ids.add(project.leaderId);
+  for (const member of project.team) {
+    if (member.collaboratorId !== internalId) ids.add(member.collaboratorId);
+  }
   return [...ids];
 }
 
@@ -48,12 +54,15 @@ async function buildRecipientReasons(input: {
   }
 
   if (input.taskId) {
-    const task = await prisma.task.findUnique({
-      where: { id: input.taskId },
-      include: TASK_ASSIGNEE_INCLUDE,
-    });
+    const [task, internalId] = await Promise.all([
+      prisma.task.findUnique({
+        where: { id: input.taskId },
+        include: TASK_ASSIGNEE_INCLUDE,
+      }),
+      getInternalCollaboratorId(),
+    ]);
     for (const collaboratorId of assigneeIds(task ?? {})) {
-      if (collaboratorId === input.authorCollaboratorId) continue;
+      if (collaboratorId === input.authorCollaboratorId || collaboratorId === internalId) continue;
       recipients.set(
         collaboratorId,
         pickReason(recipients.get(collaboratorId), "assignee"),

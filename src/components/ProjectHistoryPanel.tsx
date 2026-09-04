@@ -522,7 +522,9 @@ export function ProjectHistoryPanel({
       <div
         className={cn(
           "grid gap-4",
-          embedded ? "grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]",
+          embedded
+            ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]"
+            : "xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]",
         )}
       >
         <div>
@@ -704,13 +706,13 @@ export function ProjectHistoryPanel({
           )}
         </div>
 
-        {!embedded ? (
-          <CommentAttachmentPreview
-            entry={selectedEntry}
-            className="xl:sticky xl:top-4 xl:self-start"
-            onExpand={selectedEntry?.attachmentUrl ? () => setViewerOpen(true) : undefined}
-          />
-        ) : null}
+        <CommentAttachmentPreview
+          entry={selectedEntry}
+          className={cn(
+            embedded ? "lg:sticky lg:top-0 lg:self-start" : "xl:sticky xl:top-4 xl:self-start",
+          )}
+          onExpand={selectedEntry?.attachmentUrl ? () => setViewerOpen(true) : undefined}
+        />
       </div>
 
       <AttachmentViewerModal

@@ -3,6 +3,7 @@ import { requireManagement } from "@/lib/access";
 import { handleApiError } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
+import { isSupportLogin } from "@/lib/support-admin";
 
 export async function GET() {
   try {
@@ -20,7 +21,9 @@ export async function GET() {
       },
     });
     return NextResponse.json({
-      users: users.map((user) => ({
+      users: users
+        .filter((user) => !isSupportLogin(user.email))
+        .map((user) => ({
         ...user,
         createdAt: user.createdAt.toISOString(),
       })),

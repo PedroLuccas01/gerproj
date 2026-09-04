@@ -12,6 +12,11 @@ import {
   deleteCommentAttachment,
 } from "@/lib/comment-blob";
 import { notifyNewMentions } from "@/lib/history-notifications";
+import {
+  filterPublicCollaborators,
+  publicCollaboratorWhere,
+  stripInternalCollaboratorIds,
+} from "@/lib/internal-collaborator";
 import { mapCollaborator } from "@/lib/mappers";
 import { mapProjectHistoryEntry } from "@/lib/project-history-mapper";
 import { parseMentionIds, projectTeamMembers } from "@/lib/project-history";
@@ -52,7 +57,9 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!content && !hasAttachment) return jsonError("Informe o comentário ou anexe um arquivo.");
 
     const project = await loadProjectForAccess(projectId);
-    const collaborators = await prisma.collaborator.findMany({ where: { active: true } });
+    const collaborators = filterPublicCollaborators(
+      await prisma.collaborator.findMany({ where: { active: true, ...publicCollaboratorWhere() } }),
+    );
     const members = projectTeamMembers(
       {
         leaderId: project.leaderId,
@@ -60,7 +67,9 @@ export async function PATCH(request: Request, { params }: Params) {
       },
       collaborators.map(mapCollaborator),
     );
-    const mentionIds = parseMentionIds(content || existing.content, members);
+    const mentionIds = await stripInternalCollaboratorIds(
+      parseMentionIds(content || existing.content, members),
+    );
 
     if (nextAttachment !== undefined && existing.attachmentPathname) {
       const keepPath =

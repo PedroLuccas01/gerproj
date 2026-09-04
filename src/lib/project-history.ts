@@ -1,4 +1,5 @@
 import type { Collaborator, Project, ProjectHistoryEntry } from "./types";
+import { isInternalCollaborator } from "./internal-collaborator";
 
 export type HistoryEntryWithMentions = ProjectHistoryEntry;
 
@@ -10,7 +11,7 @@ export function projectTeamMembers(
   if (project.leaderId) ids.add(project.leaderId);
   for (const id of project.teamIds) ids.add(id);
   return collaborators
-    .filter((member) => ids.has(member.id) && member.active)
+    .filter((member) => ids.has(member.id) && member.active && !isInternalCollaborator(member))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 

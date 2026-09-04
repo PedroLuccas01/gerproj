@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireManagement } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import {
+  sanitizeLeaderId,
+  stripInternalCollaboratorIds,
+} from "@/lib/internal-collaborator";
 import { mapProject, parseDate } from "@/lib/mappers";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
@@ -12,12 +16,14 @@ export async function POST(request: Request) {
     requireManagement(access);
     const draft = (await request.json()) as ProjectDraft;
     if (!draft?.name?.trim()) return jsonError("Nome do projeto é obrigatório.");
+    const leaderId = await sanitizeLeaderId(draft.leaderId ?? null);
+    const teamIds = await stripInternalCollaboratorIds(draft.teamIds ?? []);
     const created = await prisma.project.create({
       data: {
         name: draft.name.trim(),
         description: draft.description ?? "",
         clientId: draft.clientId,
-        leaderId: draft.leaderId,
+        leaderId,
         durationDays: draft.durationDays,
         status: draft.status,
         startDate: parseDate(draft.startDate),
@@ -29,7 +35,7 @@ export async function POST(request: Request) {
         budgetSoftware: draft.budgetByArea?.software ?? 0,
         notes: draft.notes ?? "",
         team: {
-          create: (draft.teamIds ?? []).map((collaboratorId) => ({ collaboratorId })),
+          create: teamIds.map((collaboratorId) => ({ collaboratorId })),
         },
       },
       include: { team: true },

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { stripInternalCollaboratorIds } from "@/lib/internal-collaborator";
 
 export const TASK_ASSIGNEE_INCLUDE = {
   assignees: { select: { collaboratorId: true } },
@@ -13,7 +14,7 @@ export function assigneeIds(row: TaskWithAssignees) {
 }
 
 export async function replaceTaskAssignees(taskId: string, rawIds: string[]) {
-  const unique = [...new Set(rawIds.filter(Boolean))];
+  const unique = [...new Set((await stripInternalCollaboratorIds(rawIds)).filter(Boolean))];
   const valid = unique.length
     ? await prisma.collaborator.findMany({
         where: { id: { in: unique } },
