@@ -7,6 +7,7 @@ import { useState } from "react";
 import { AuditLogPanel } from "@/components/AuditLogPanel";
 import { ExportScheduleButtons } from "@/components/ExportScheduleButtons";
 import { ProjectFormModal } from "@/components/ProjectFormModal";
+import { ProjectSubnav } from "@/components/ProjectSubnav";
 import { Button, StatusBadge } from "@/components/ui";
 import { AREA_LABEL, BUDGET_AREAS, STATUS_BADGE, STATUS_LABEL } from "@/lib/constants";
 import { formatBr } from "@/lib/dates";
@@ -106,6 +107,8 @@ export default function ProjetoDetalhePage() {
           </Button>
         </div>
       </div>
+
+      <ProjectSubnav projectId={project.id} isManagement />
 
       {project.description ? (
         <p className="max-w-3xl text-sm leading-6 text-muted">{project.description}</p>

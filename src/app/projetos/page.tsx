@@ -162,6 +162,12 @@ export default function ProjetosPage() {
                 >
                   Cronograma
                 </Link>
+                <Link
+                  href={`/projetos/${project.id}/historico`}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-hover"
+                >
+                  Histórico
+                </Link>
                 {isManagement ? (
                   <Link
                     href={`/projetos/${project.id}`}

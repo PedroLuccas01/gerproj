@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ProjectGantt } from "@/components/ProjectGantt";
 import { ExportScheduleButtons } from "@/components/ExportScheduleButtons";
+import { ProjectSubnav } from "@/components/ProjectSubnav";
 import { StatusBadge } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { isAllocatedToProject } from "@/lib/access-shared";
@@ -62,6 +63,9 @@ export default function CronogramaPage() {
           }}
         />
       </div>
+
+      <ProjectSubnav projectId={project.id} isManagement={isManagement} />
+
       <ProjectGantt project={project} readOnly={!isManagement} />
     </div>
   );

@@ -81,6 +81,18 @@ export interface Task {
   collapsed: boolean;
 }
 
+export interface ProjectHistoryEntry {
+  id: string;
+  projectId: string;
+  authorId: string;
+  authorName: string;
+  authorEmail: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  mentionIds: string[];
+}
+
 export interface AppState {
   collaborators: Collaborator[];
   clients: Client[];

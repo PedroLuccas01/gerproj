@@ -108,3 +108,19 @@ export async function assertCanViewProject(user: AuthUser, projectId: string) {
   forbid("Você não está alocado neste projeto.");
   return project;
 }
+
+export async function assertCanWriteProjectHistory(user: AuthUser, projectId: string) {
+  return assertCanViewProject(user, projectId);
+}
+
+export async function assertCanEditProjectHistoryEntry(
+  user: AuthUser,
+  entry: { authorId: string; projectId: string },
+) {
+  if (user.isManagement || entry.authorId === user.id) return;
+  forbid("Você só pode editar seus próprios registros.");
+}
+
+export async function assertCanDeleteProjectHistoryEntry(user: AuthUser) {
+  requireManagement(user);
+}

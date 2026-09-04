@@ -62,6 +62,7 @@ model Collaborator {
   ledProjects     Project[]      @relation("ProjectLeader")
   taskAssignments TaskAssignee[]
   teams           ProjectTeam[]
+  historyMentions ProjectHistoryMention[]
 }
 
 model Client {
@@ -95,6 +96,7 @@ model Project {
   tasks           Task[]
   team            ProjectTeam[]
   shares          ProjectShare[]
+  historyEntries  ProjectHistoryEntry[]
 }
 
 model ProjectShare {
@@ -193,4 +195,29 @@ model TaskDependency {
 
   @@id([taskId, dependsOnId])
   @@index([dependsOnId])
+}
+
+model ProjectHistoryEntry {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId    String
+  authorName  String
+  authorEmail String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  mentions    ProjectHistoryMention[]
+
+  @@index([projectId, createdAt])
+}
+
+model ProjectHistoryMention {
+  entryId        String
+  collaboratorId String
+  entry          ProjectHistoryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  collaborator   Collaborator        @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, collaboratorId])
+  @@index([collaboratorId])
 }
