@@ -81,3 +81,17 @@ export function isWordAttachment(mimeType: string | null | undefined) {
 export function officeEmbedUrl(fileUrl: string) {
   return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`;
 }
+
+export async function downloadCommentAttachment(url: string, fileName: string) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Não foi possível baixar o arquivo.");
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName || "anexo";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}

@@ -3,13 +3,14 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   Expand,
   FileSpreadsheet,
   FileText,
   ImageIcon,
   Paperclip,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import * as XLSX from "xlsx";
 import { Modal } from "@/components/Modal";
 import {
@@ -17,12 +18,51 @@ import {
   isImageAttachment,
   isPdfAttachment,
   isWordAttachment,
+  downloadCommentAttachment,
   officeEmbedUrl,
 } from "@/lib/comment-attachments";
 import type { ProjectHistoryEntry } from "@/lib/types";
 import { Button, cn } from "./ui";
 
 type ViewerMode = "compact" | "expanded";
+
+function ImageDownloadButton({
+  url,
+  fileName,
+  className,
+}: {
+  url: string;
+  fileName: string;
+  className?: string;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadCommentAttachment(url, fileName);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      onClick={handleDownload}
+      disabled={downloading}
+      className={cn("shrink-0 px-2 py-1 text-xs", className)}
+      title="Baixar imagem"
+    >
+      <Download className="h-3.5 w-3.5" />
+      {downloading ? "Baixando..." : "Baixar"}
+    </Button>
+  );
+}
 
 function SheetTabs({
   names,
@@ -266,6 +306,9 @@ export function AttachmentViewerModal({
 }) {
   if (!entry?.attachmentUrl) return null;
 
+  const isImage = isImageAttachment(entry.attachmentMime);
+  const fileName = entry.attachmentName ?? "Imagem";
+
   return (
     <Modal
       open={open}
@@ -273,6 +316,11 @@ export function AttachmentViewerModal({
       xl
       title={entry.attachmentName ?? "Anexo"}
       subtitle={`${entry.authorName} · comentário do projeto`}
+      footer={
+        isImage ? (
+          <ImageDownloadButton url={entry.attachmentUrl} fileName={fileName} />
+        ) : undefined
+      }
     >
       <AttachmentViewerContent entry={entry} mode="expanded" />
     </Modal>
@@ -306,7 +354,8 @@ export function CommentAttachmentPreview({
   }
 
   const mime = entry.attachmentMime;
-  const Icon = isImageAttachment(mime)
+  const isImage = isImageAttachment(mime);
+  const Icon = isImage
     ? ImageIcon
     : isExcelAttachment(mime)
       ? FileSpreadsheet
@@ -320,12 +369,20 @@ export function CommentAttachmentPreview({
           <p className="truncate text-sm font-semibold text-ink">{entry.attachmentName}</p>
           <p className="text-xs text-faint">{entry.authorName}</p>
         </div>
-        {onExpand ? (
-          <Button variant="secondary" onClick={onExpand} className="shrink-0 px-2 py-1 text-xs">
-            <Expand className="h-3.5 w-3.5" />
-            Ampliar
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isImage ? (
+            <ImageDownloadButton
+              url={entry.attachmentUrl}
+              fileName={entry.attachmentName ?? "Imagem"}
+            />
+          ) : null}
+          {onExpand ? (
+            <Button variant="secondary" onClick={onExpand} className="px-2 py-1 text-xs">
+              <Expand className="h-3.5 w-3.5" />
+              Ampliar
+            </Button>
+          ) : null}
+        </div>
       </div>
       <button
         type="button"
