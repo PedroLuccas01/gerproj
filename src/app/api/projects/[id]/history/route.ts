@@ -5,6 +5,8 @@ import {
   loadProjectForAccess,
 } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import type { CommentAttachmentInput } from "@/lib/comment-attachments";
+import { attachmentDataFromInput } from "@/lib/comment-blob";
 import { mapProjectHistoryEntry } from "@/lib/project-history-mapper";
 import { parseMentionIds, projectTeamMembers } from "@/lib/project-history";
 import { mapCollaborator } from "@/lib/mappers";
@@ -46,9 +48,13 @@ export async function POST(request: Request, { params }: Params) {
     const { id: projectId } = await params;
     await assertCanWriteProjectHistory(access, projectId);
 
-    const body = (await request.json()) as { content?: string };
+    const body = (await request.json()) as {
+      content?: string;
+      attachment?: CommentAttachmentInput | null;
+    };
     const content = body.content?.trim() ?? "";
-    if (!content) return jsonError("Informe o conteúdo do registro.");
+    const attachment = attachmentDataFromInput(body.attachment);
+    if (!content && !attachment) return jsonError("Informe o comentário ou anexe um arquivo.");
 
     const project = await loadProjectForAccess(projectId);
     const collaborators = await prisma.collaborator.findMany({ where: { active: true } });
@@ -67,7 +73,8 @@ export async function POST(request: Request, { params }: Params) {
         authorId: access.id,
         authorName: access.name,
         authorEmail: access.email,
-        content,
+        content: content || attachment?.attachmentName || "Anexo",
+        ...(attachment ?? {}),
         mentions: mentionIds.length
           ? { create: mentionIds.map((collaboratorId) => ({ collaboratorId })) }
           : undefined,

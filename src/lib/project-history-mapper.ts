@@ -14,5 +14,10 @@ export function mapProjectHistoryEntry(row: DbHistoryEntry): ProjectHistoryEntry
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     mentionIds: row.mentions.map((mention) => mention.collaboratorId),
+    attachmentUrl: row.attachmentUrl,
+    attachmentPathname: row.attachmentPathname,
+    attachmentName: row.attachmentName,
+    attachmentMime: row.attachmentMime,
+    attachmentSize: row.attachmentSize,
   };
 }

@@ -91,6 +91,11 @@ export interface ProjectHistoryEntry {
   createdAt: string;
   updatedAt: string;
   mentionIds: string[];
+  attachmentUrl: string | null;
+  attachmentPathname: string | null;
+  attachmentName: string | null;
+  attachmentMime: string | null;
+  attachmentSize: number | null;
 }
 
 export interface AppState {

@@ -22,9 +22,9 @@ export function ProjectSubnav({
       match: (path: string) => path.endsWith("/cronograma"),
     },
     {
-      href: `/projetos/${projectId}/historico`,
-      label: "Histórico",
-      match: (path: string) => path.endsWith("/historico"),
+      href: `/projetos/${projectId}/comentarios`,
+      label: "Comentários",
+      match: (path: string) => path.endsWith("/comentarios") || path.endsWith("/historico"),
     },
   ];
 
