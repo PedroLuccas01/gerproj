@@ -22,6 +22,7 @@ import { ChangePasswordModal } from "./ChangePasswordModal";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "./ui";
+import { APP_BUILD_VERSION } from "@/lib/build-version";
 
 const NAV = [
   { href: "/", label: "Entregas", icon: LayoutDashboard },
@@ -137,7 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line-subtle bg-surface px-4">
           <p className="min-w-0 truncate text-sm font-light tracking-wide text-muted">
-            Gestão de Projetos - PDef | {process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}
+            Gestão de Projetos - PDef | {APP_BUILD_VERSION}
           </p>
           <div className="flex shrink-0 items-center gap-2">
           <ThemeToggle compact className="sm:hidden" />

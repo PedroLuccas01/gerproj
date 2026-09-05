@@ -63,11 +63,6 @@ export default function ProjetosPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-navy">Projetos</h1>
-          <p className="text-sm text-muted">
-            {isManagement
-              ? "Cadastre prazo, orçamento, equipe e acompanhe cada obra do planejamento à entrega."
-              : "Acompanhe os projetos em que você está alocado."}
-          </p>
         </div>
         {isManagement ? (
           <Button onClick={() => setOpen(true)}>

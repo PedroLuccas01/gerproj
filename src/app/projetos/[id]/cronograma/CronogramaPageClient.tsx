@@ -138,11 +138,6 @@ export function CronogramaPageClient() {
             <h1 className="text-2xl font-semibold text-navy">Cronograma</h1>
             <StatusBadge label={STATUS_LABEL[project.status]} className={STATUS_BADGE[project.status]} />
           </div>
-          <p className="mt-1 text-sm text-muted">
-            {isManagement
-              ? "Visualize o cronograma completo com gráfico de Gantt. Marque atividades concluídas, defina datas e responsáveis."
-              : "Visualize o cronograma completo com gráfico de Gantt."}
-          </p>
           <p className="mt-1 text-xs text-faint">
             {formatBr(project.startDate)} – {formatBr(project.endDate)} · {project.durationDays} dias
           </p>
